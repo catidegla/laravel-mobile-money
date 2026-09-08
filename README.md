@@ -223,7 +223,7 @@ composer install
 vendor/bin/phpunit
 ```
 
-96 tests. The suite fakes HTTP and asserts the exact bytes sent to each provider, including that 10 000 XOF leaves as `"10000"`.
+100 tests. The suite fakes HTTP and asserts the exact bytes sent to each provider, including that 10 000 XOF leaves as `"10000"`.
 
 The webhook tests are the ones worth reading. They cover a tampered body, a signature from the wrong secret, a replayed callback outside the tolerance window, a missing or malformed header, both signatures during a key rotation, and the case where verification must fail closed because no secret is configured. There is also a test proving the raw request body is used rather than re-encoded JSON, since re-encoding can reorder keys and silently break every signature.
 

@@ -1,6 +1,6 @@
 {
   "name": "catidegla/laravel-mobile-money",
-  "description": "One Laravel API for West and Central African mobile money. Correct XOF handling, numbering-plan aware phone parsing, idempotent collections and honest asynchronous state. MTN MoMo implemented, more providers landing.",
+  "description": "One Laravel API for West and Central African mobile money. MTN MoMo, Wave and Orange Money, with correct XOF handling, numbering-plan aware phone parsing, verified webhooks, idempotent collections and reconciliation for callbacks that never arrive.",
   "keywords": [
     "laravel",
     "mobile-money",
