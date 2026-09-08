@@ -1,0 +1,69 @@
+{
+  "name": "catidegla/laravel-mobile-money",
+  "description": "One Laravel API for West and Central African mobile money. Correct XOF handling, numbering-plan aware phone parsing, idempotent collections and honest asynchronous state. MTN MoMo implemented, more providers landing.",
+  "keywords": [
+    "laravel",
+    "mobile-money",
+    "payments",
+    "orange-money",
+    "mtn-momo",
+    "wave",
+    "moov",
+    "kkiapay",
+    "cinetpay",
+    "paydunya",
+    "xof",
+    "west-africa",
+    "francophone",
+    "fintech"
+  ],
+  "homepage": "https://github.com/catidegla/laravel-mobile-money",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Christ-loisele Atidegla",
+      "homepage": "https://github.com/catidegla",
+      "role": "Developer"
+    }
+  ],
+  "require": {
+    "php": "^8.2",
+    "illuminate/contracts": "^11.0|^12.0",
+    "illuminate/database": "^11.0|^12.0",
+    "illuminate/http": "^11.0|^12.0",
+    "illuminate/support": "^11.0|^12.0"
+  },
+  "require-dev": {
+    "orchestra/testbench": "^9.0|^10.0",
+    "phpunit/phpunit": "^11.0|^12.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Catidegla\\MobileMoney\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Catidegla\\MobileMoney\\Tests\\": "tests/"
+    }
+  },
+  "scripts": {
+    "test": "vendor/bin/phpunit",
+    "test-coverage": "vendor/bin/phpunit --coverage-text"
+  },
+  "config": {
+    "sort-packages": true
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Catidegla\\MobileMoney\\MobileMoneyServiceProvider"
+      ],
+      "aliases": {
+        "MobileMoney": "Catidegla\\MobileMoney\\Facades\\MobileMoney"
+      }
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
