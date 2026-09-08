@@ -41,5 +41,21 @@ abstract class TestCase extends Orchestra
             'callback_url' => 'https://merchant.example.com/webhook',
             'timeout' => 5,
         ]);
+
+        $app['config']->set('mobile-money.providers.wave', [
+            'driver' => 'wave',
+            'base_url' => 'https://api.wave.com',
+            'api_key' => 'wave-test-api-key',
+            'webhook_secret' => self::WAVE_SECRET,
+            'webhook_tolerance' => 300,
+            'success_url' => 'https://merchant.example.com/paid',
+            'error_url' => 'https://merchant.example.com/failed',
+            'currency' => 'XOF',
+            'currencies' => ['XOF'],
+            'countries' => ['SN', 'CI'],
+            'timeout' => 5,
+        ]);
     }
+
+    public const WAVE_SECRET = 'whsec_test_UBS4tGmemXPI0ZL2vHVOEuC3';
 }

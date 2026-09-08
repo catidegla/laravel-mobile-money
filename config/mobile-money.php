@@ -73,6 +73,28 @@ return [
             'timeout' => 30,
         ],
 
+        'wave' => [
+            'driver' => 'wave',
+            'base_url' => env('WAVE_BASE_URL', 'https://api.wave.com'),
+            'api_key' => env('WAVE_API_KEY'),
+
+            // Generated when you enable request signing on the API key, and
+            // shown once. Without it every callback is rejected, which is the
+            // safe default.
+            'webhook_secret' => env('WAVE_WEBHOOK_SECRET'),
+            'webhook_tolerance' => 300,
+
+            // Wave is a redirect flow, so both are required before a session
+            // can be created.
+            'success_url' => env('WAVE_SUCCESS_URL'),
+            'error_url' => env('WAVE_ERROR_URL'),
+
+            'currency' => 'XOF',
+            'currencies' => ['XOF'],
+            'countries' => ['SN', 'CI'],
+            'timeout' => 30,
+        ],
+
     ],
 
     /*
