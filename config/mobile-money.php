@@ -1,0 +1,132 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Default provider
+    |--------------------------------------------------------------------------
+    |
+    | Used when you call the facade without naming a driver and routing cannot
+    | decide on its own. Most applications should let routing choose instead,
+    | since the right network depends on the customer's number.
+    |
+    */
+
+    'default' => env('MOBILE_MONEY_PROVIDER', 'mtn_momo'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Routing
+    |--------------------------------------------------------------------------
+    |
+    | Preference order per ISO 3166-1 alpha-2 country, consulted when the
+    | numbering plan does not identify the operator on its own. Cote d'Ivoire
+    | encodes the operator in the number itself, so it rarely reaches this.
+    |
+    */
+
+    'routing' => [
+        'BJ' => ['mtn_momo', 'moov'],
+        'CI' => ['orange_money', 'mtn_momo', 'moov'],
+        'SN' => ['wave', 'orange_money'],
+        'TG' => ['moov', 'togocom'],
+        'ML' => ['orange_money', 'moov'],
+        'BF' => ['orange_money', 'moov'],
+        'CM' => ['mtn_momo', 'orange_money'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Providers
+    |--------------------------------------------------------------------------
+    |
+    | Each entry names a driver and carries its credentials, the currencies it
+    | can move and the countries it serves. A payment is only routed to a
+    | provider whose currency and country both match, so keep these accurate:
+    | they are the guard against sending an XOF payment to a XAF wallet.
+    |
+    */
+
+    'providers' => [
+
+        'mtn_momo' => [
+            'driver' => 'mtn_momo',
+            'base_url' => env('MTN_MOMO_BASE_URL', 'https://sandbox.momodeveloper.mtn.com'),
+
+            // "sandbox" or the market code MTN issued you, for example "mtnbenin".
+            'environment' => env('MTN_MOMO_ENVIRONMENT', 'sandbox'),
+
+            'subscription_key' => env('MTN_MOMO_SUBSCRIPTION_KEY'),
+            'api_user' => env('MTN_MOMO_API_USER'),
+            'api_key' => env('MTN_MOMO_API_KEY'),
+
+            // The sandbox settles in EUR regardless of market. Production uses
+            // the local currency, so this changes when you go live.
+            'currency' => env('MTN_MOMO_CURRENCY', 'XOF'),
+            'currencies' => ['XOF', 'XAF', 'EUR'],
+            'countries' => ['BJ', 'CI', 'CM', 'GN', 'GH', 'UG', 'RW', 'ZM'],
+
+            'callback_url' => env('MTN_MOMO_CALLBACK_URL'),
+            'timeout' => 30,
+        ],
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Webhooks
+    |--------------------------------------------------------------------------
+    |
+    | Callbacks are registered per provider and verified before they are read.
+    | Leave verification on. An unverified callback endpoint lets anyone mark
+    | any order as paid.
+    |
+    */
+
+    'webhooks' => [
+        'enabled' => env('MOBILE_MONEY_WEBHOOKS', true),
+        'path' => 'mobile-money/webhook/{provider}',
+        'middleware' => ['api'],
+
+        // Reject callbacks whose timestamp is older than this, in seconds, so
+        // a captured request cannot be replayed later.
+        'tolerance' => 300,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reconciliation
+    |--------------------------------------------------------------------------
+    |
+    | Webhooks in this region are not reliable enough to be the only path to a
+    | final state. Poll anything still pending, with a backoff, and stop after
+    | the provider's own expiry window.
+    |
+    */
+
+    'reconciliation' => [
+        'enabled' => true,
+
+        // Seconds after initiation to re-check a pending payment.
+        'schedule' => [30, 60, 120, 300, 600, 1800, 3600],
+
+        // Give up and mark expired after this many seconds.
+        'give_up_after' => 86400,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Locale
+    |--------------------------------------------------------------------------
+    |
+    | Language for customer-facing strings. Errors aimed at developers stay in
+    | English; anything a payer sees is translated.
+    |
+    */
+
+    'locale' => env('MOBILE_MONEY_LOCALE', 'fr'),
+
+];
