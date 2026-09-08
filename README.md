@@ -38,7 +38,15 @@ No driver named. The payer's number decides which network handles it.
 
 Integrating mobile money in this region means writing the same four hundred lines against Orange Money, then again against MTN, then again against Wave, each with a different idea of what a phone number looks like and what an amount is.
 
-The open source options are thin. The most installed single-provider PHP library has 21 stars and stopped being maintained; the unified packages that existed have gone. This is an attempt at the package that should exist.
+There is no shortage of PHP packages in this space. They fall into two groups, and neither one does that job.
+
+**Aggregator SDKs** are the well trodden option, and several are in good health: MeSomb shipped 3.1.2 in March 2026, NotchPay 2.0 in May 2025, Moneroo v0.2.0 in November 2025. Reaching for one means contracting with the aggregator, routing settlement through them and paying a share of every transaction. That is a reasonable trade and if it suits you, take it. It is a commercial decision more than a technical one, and this package is not an argument against it.
+
+**Single provider SDKs** go direct, which is the other side of that trade, but each covers one provider. `faso-dev/orange-money-burkina-sdk` is Orange Money in Burkina Faso, `opsofts/laravel-mtn-momo` is MTN collections. Reaching three networks means installing three of them and then writing the layer underneath yourself: one amount type, one phone parser, one status enum, one idempotency story. That layer is most of the work and nearly all of the risk, and it is what the rest of this README is about.
+
+This package is the second option with that layer already written. Direct to each provider, nobody in the payment path who does not have to be, one interface across all of them.
+
+Figures were checked on Packagist on 8 September 2026. Note also that `mmchrist89/laravel-mobile-money` shares this package's name under a different vendor; it targets MTN and Airtel, has no tagged release, and has not changed since February 2026.
 
 ## The parts that are easy to get wrong
 
