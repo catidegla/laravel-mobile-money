@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Catidegla\MobileMoney\Tests;
 
 use Catidegla\MobileMoney\MobileMoneyServiceProvider;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 abstract class TestCase extends Orchestra
 {
+    use RefreshDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -27,6 +30,13 @@ abstract class TestCase extends Orchestra
     protected function defineEnvironment($app): void
     {
         $app['config']->set('cache.default', 'array');
+
+        $app['config']->set('database.default', 'testing');
+        $app['config']->set('database.connections.testing', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
 
         $app['config']->set('mobile-money.providers.mtn_momo', [
             'driver' => 'mtn_momo',

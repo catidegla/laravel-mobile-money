@@ -186,6 +186,36 @@ MobileMoney::availableFor(Currency::XOF, 'CI');  // every driver serving that ma
 MobileMoney::routeFor($request);                 // the one it would pick
 ```
 
+### Webhooks
+
+The package registers `POST /mobile-money/webhook/{provider}` on the `api` middleware group, so callbacks are not rejected by CSRF. Verification runs before the body is read, and listeners fire on the transition rather than on each delivery, so a provider retrying a callback does not deliver the order twice.
+
+```php
+Event::listen(PaymentSucceeded::class, function (PaymentSucceeded $event) {
+    $event->record;       // the local row
+    $event->transaction;  // what the provider said
+});
+```
+
+Every rejection answers `202` with the same body, whether the signature failed, the provider is unknown, or the order does not exist. Different responses would let someone probing the endpoint work out which orders exist and which part of their forgery to fix.
+
+### Reconciliation
+
+Callbacks in this region are lost often enough that relying on them alone strands orders, and the customer whose money left their wallet will not accept "we did not get the notification". Treat polling as the primary path.
+
+```php
+// routes/console.php
+Schedule::command('mobile-money:reconcile')->everyMinute();
+```
+
+The backoff lives on each row, so running every minute costs nothing for payments that are not due. Polling gives up once the configured schedule is exhausted, and `PaymentStatus::Unknown`, the state a timeout leaves behind, is picked up rather than treated as final.
+
+### Persistence
+
+`MobileMoneyTransaction` stores amounts as integer minor units, keeps the idempotency key unique, and encrypts Orange Money's `notif_token` at rest, since anyone holding it can forge a notification for that order.
+
+It refuses to move a settled payment backwards. Out of order delivery is normal, and a stale failure arriving after a poll already confirmed success must not reopen the order.
+
 ## Testing
 
 ```bash
@@ -193,7 +223,7 @@ composer install
 vendor/bin/phpunit
 ```
 
-76 tests. The suite fakes HTTP and asserts the exact bytes sent to each provider, including that 10 000 XOF leaves as `"10000"`.
+96 tests. The suite fakes HTTP and asserts the exact bytes sent to each provider, including that 10 000 XOF leaves as `"10000"`.
 
 The webhook tests are the ones worth reading. They cover a tampered body, a signature from the wrong secret, a replayed callback outside the tolerance window, a missing or malformed header, both signatures during a key rotation, and the case where verification must fail closed because no secret is configured. There is also a test proving the raw request body is used rather than re-encoded JSON, since re-encoding can reorder keys and silently break every signature.
 
