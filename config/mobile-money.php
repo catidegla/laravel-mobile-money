@@ -95,6 +95,36 @@ return [
             'timeout' => 30,
         ],
 
+        'orange_money' => [
+            'driver' => 'orange_money',
+            'base_url' => env('ORANGE_BASE_URL', 'https://api.orange.com'),
+            'token_path' => env('ORANGE_TOKEN_PATH', '/oauth/v3/token'),
+
+            'client_id' => env('ORANGE_CLIENT_ID'),
+            'client_secret' => env('ORANGE_CLIENT_SECRET'),
+            'merchant_key' => env('ORANGE_MERCHANT_KEY'),
+
+            // The country slug sits in the URL path. "dev" is the sandbox;
+            // production uses the market slug Orange issues you. Changing this
+            // is one of the two edits needed to go live.
+            'country_slug' => env('ORANGE_COUNTRY_SLUG', 'dev'),
+
+            // The other edit. The sandbox settles in OUV rather than the real
+            // currency, so a sandbox-passing config would be rejected in
+            // production. Leave this null once you are live.
+            'force_currency' => env('ORANGE_FORCE_CURRENCY'),
+
+            'return_url' => env('ORANGE_RETURN_URL'),
+            'cancel_url' => env('ORANGE_CANCEL_URL'),
+            'notif_url' => env('ORANGE_NOTIF_URL'),
+            'lang' => 'fr',
+
+            'currency' => 'XOF',
+            'currencies' => ['XOF', 'XAF'],
+            'countries' => ['CI', 'SN', 'ML', 'BF', 'CM', 'GN'],
+            'timeout' => 30,
+        ],
+
     ],
 
     /*

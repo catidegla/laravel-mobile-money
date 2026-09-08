@@ -55,6 +55,25 @@ abstract class TestCase extends Orchestra
             'countries' => ['SN', 'CI'],
             'timeout' => 5,
         ]);
+
+        $app['config']->set('mobile-money.providers.orange_money', [
+            'driver' => 'orange_money',
+            'base_url' => 'https://api.orange.com',
+            'token_path' => '/oauth/v3/token',
+            'client_id' => 'orange-client-id',
+            'client_secret' => 'orange-client-secret',
+            'merchant_key' => 'orange-merchant-key',
+            'country_slug' => 'dev',
+            'force_currency' => null,
+            'return_url' => 'https://merchant.example.com/paid',
+            'cancel_url' => 'https://merchant.example.com/cancelled',
+            'notif_url' => 'https://merchant.example.com/notify',
+            'lang' => 'fr',
+            'currency' => 'XOF',
+            'currencies' => ['XOF', 'XAF'],
+            'countries' => ['CI', 'SN', 'ML', 'BF', 'CM', 'GN'],
+            'timeout' => 5,
+        ]);
     }
 
     public const WAVE_SECRET = 'whsec_test_UBS4tGmemXPI0ZL2vHVOEuC3';

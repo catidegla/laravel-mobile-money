@@ -15,7 +15,7 @@ Correct XOF. Numbering-plan aware phone parsing. Idempotent collections. Honest 
 
 ---
 
-> **Status: in development.** MTN MoMo is implemented and tested. Orange Money and Wave are next, then Moov, KKiaPay, CinetPay and PayDunya. The core layers, money, phone numbers, routing and state, are done and are what the rest builds on. See [Provider status](#provider-status) for exactly what works today.
+> **Status: in development.** MTN MoMo, Wave and Orange Money are implemented and tested. Moov, KKiaPay, CinetPay and PayDunya are next. See [Provider status](#provider-status) for exactly what works today, and read the note under it before going live.
 
 ```php
 use Catidegla\MobileMoney\Facades\MobileMoney;
@@ -103,15 +103,29 @@ Providers also flatten distinctions that matter. MTN reports a customer declinin
 
 ## Provider status
 
-| Provider | Markets | Collections | Payouts | Webhooks | Sandbox verified |
-| :--- | :--- | :---: | :---: | :---: | :---: |
-| MTN MoMo | BJ, CI, CM, GN, GH, UG, RW | yes | planned | planned | **not yet** |
-| Orange Money | CI, SN, ML, BF, CM, GN | planned | planned | planned | no |
-| Wave | SN, CI | planned | planned | planned | no |
-| Moov Africa | BJ, CI, TG, BF, ML | planned | planned | planned | no |
-| KKiaPay | BJ | planned | planned | planned | no |
-| CinetPay | UEMOA | planned | planned | planned | no |
-| PayDunya | SN, CI, BJ, TG | planned | planned | planned | no |
+| Provider | Markets | Flow | Collections | Webhooks | Payouts | Sandbox verified |
+| :--- | :--- | :--- | :---: | :---: | :---: | :---: |
+| MTN MoMo | BJ, CI, CM, GN, GH, UG, RW | handset prompt | yes | planned | planned | **not yet** |
+| Wave | SN, CI | redirect | yes | yes, HMAC signed | planned | **not yet** |
+| Orange Money | CI, SN, ML, BF, CM, GN | redirect | yes | yes, token matched | planned | **not yet** |
+| Moov Africa | BJ, CI, TG, BF, ML | | planned | planned | planned | no |
+| KKiaPay | BJ | | planned | planned | planned | no |
+| CinetPay | UEMOA | | planned | planned | planned | no |
+| PayDunya | SN, CI, BJ, TG | | planned | planned | planned | no |
+
+**The three flows are genuinely different**, and calling code has to branch on it. MTN pushes a prompt to the handset and returns nothing to redirect to. Wave and Orange both return a URL. `$transaction->requiresRedirect()` tells you which you got.
+
+**Webhook verification differs too, and one is weaker than the other.** Wave signs the body with HMAC-SHA256 and a rotating secret. Orange does not sign anything: it issues a `notif_token` when the payment is created and sends the same token back, so verification means comparing it against the one you stored. That makes the token a bearer secret travelling in the request body, only as safe as the transport. Serve the notification URL over HTTPS and treat the token as a credential.
+
+Because Orange needs a lookup this package cannot perform on its own, you have to teach it how:
+
+```php
+MobileMoney::driver('orange_money')->resolveNotifTokenUsing(
+    fn (string $orderId) => Payment::where('reference', $orderId)->value('notif_token'),
+);
+```
+
+Without a resolver, verification returns false for every callback. That is deliberate. The alternative is an endpoint that marks any order paid on request.
 
 **On "sandbox verified".** Every driver is written against the provider's published API contract and covered by tests that assert the exact request shape. None has yet been run against a live provider sandbox, which needs merchant credentials from each one. That column will only say yes when a real transaction has cleared. Until then, treat the contract as documented rather than proven, and run your own sandbox test before going live.
 
@@ -179,7 +193,9 @@ composer install
 vendor/bin/phpunit
 ```
 
-44 tests. The suite fakes HTTP and asserts the exact bytes sent to each provider, including that 10 000 XOF leaves as `"10000"`.
+76 tests. The suite fakes HTTP and asserts the exact bytes sent to each provider, including that 10 000 XOF leaves as `"10000"`.
+
+The webhook tests are the ones worth reading. They cover a tampered body, a signature from the wrong secret, a replayed callback outside the tolerance window, a missing or malformed header, both signatures during a key rotation, and the case where verification must fail closed because no secret is configured. There is also a test proving the raw request body is used rather than re-encoded JSON, since re-encoding can reorder keys and silently break every signature.
 
 ## Contributing
 

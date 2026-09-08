@@ -10,6 +10,7 @@ use Catidegla\MobileMoney\Data\Transaction;
 use Catidegla\MobileMoney\Enums\Currency;
 use Catidegla\MobileMoney\Exceptions\ProviderException;
 use Catidegla\MobileMoney\Providers\MtnMomoProvider;
+use Catidegla\MobileMoney\Providers\OrangeMoneyProvider;
 use Catidegla\MobileMoney\Providers\WaveProvider;
 use Closure;
 use Illuminate\Contracts\Foundation\Application;
@@ -62,6 +63,7 @@ class MobileMoneyManager
         return match ($config['driver'] ?? $name) {
             'mtn_momo' => new MtnMomoProvider($config),
             'wave' => new WaveProvider($config),
+            'orange_money' => new OrangeMoneyProvider($config),
             default => throw ProviderException::unknownDriver($name, array_keys($this->config('providers') ?? [])),
         };
     }
