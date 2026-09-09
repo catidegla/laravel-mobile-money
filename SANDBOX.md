@@ -14,13 +14,27 @@ Worth being clear before you spend an hour on it.
 
 So a successful sandbox run flips the wire contract to verified. It does not flip the currency handling. Do not let the README claim otherwise.
 
+## The short version
+
+Everything except creating the account is scripted:
+
+```bash
+node scripts/sandbox-mtn.mjs <your-subscription-key>
+```
+
+That provisions the API user and key, fetches a token, prints the `.env` block, then probes every documented test number and prints the reason code table below. It also names any reason string the driver does not currently handle.
+
+The two manual steps are creating the developer account and subscribing to Collections, because neither has an API. The rest of this document explains what the script is doing and why the reason codes matter.
+
 ## Getting credentials
 
 1. Create an account at [momodeveloper.mtn.com](https://momodeveloper.mtn.com) and confirm the email.
 2. Subscribe to the **Collections** product. Your profile then shows a primary and secondary subscription key. Either works. This is `Ocp-Apim-Subscription-Key` in every call below.
 3. Everything else you provision yourself with two API calls.
 
-### Provision an API user
+### Provision an API user, by hand
+
+The script does all of this. It is written out because a runbook you cannot follow without running someone else's script is not a runbook.
 
 The sandbox has no UI for this. You invent a UUID, and that UUID becomes your API user id.
 
