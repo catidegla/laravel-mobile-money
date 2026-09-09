@@ -2,7 +2,7 @@
 
 # Laravel Mobile Money
 
-**Three mobile money networks behind one Laravel interface.**
+Three mobile money networks behind one Laravel interface.
 
 MTN MoMo, Wave and Orange Money. Idempotent collections, verified webhooks, numbering-plan aware phone parsing, and reconciliation for the callbacks that never arrive.
 
@@ -63,7 +63,7 @@ Money::of(10000, Currency::XOF)->forProvider();   // "10000"
 // as a float.
 ```
 
-**This part is not novel, and it would be dishonest to imply otherwise.** [brick/money](https://github.com/brick/money) ships the full ISO 4217 table and has XOF at an exponent of zero, and [moneyphp/money](https://github.com/moneyphp/money) models exponents correctly too. If a correct money type is all you need, use one of those; they are older, more widely used and better tested than anything here. What neither of them does is talk to MTN, Wave or Orange, and that provider layer is what this package is actually for. The money type exists because the drivers need one, not because the existing ones are wrong.
+This part is not novel, and it would be dishonest to imply otherwise. [brick/money](https://github.com/brick/money) ships the full ISO 4217 table and has XOF at an exponent of zero, and [moneyphp/money](https://github.com/moneyphp/money) models exponents correctly too. If a correct money type is all you need, use one of those; they are older, more widely used and better tested than anything here. What neither of them does is talk to MTN, Wave or Orange, and that provider layer is what this package is actually for. The money type exists because the drivers need one, not because the existing ones are wrong.
 
 `Money` holds integer minor units and refuses rather than rounds:
 
@@ -127,7 +127,7 @@ Providers also flatten distinctions that matter. MTN reports a customer declinin
 
 **The three flows are genuinely different**, and calling code has to branch on it. MTN pushes a prompt to the handset and returns nothing to redirect to. Wave and Orange both return a URL. `$transaction->requiresRedirect()` tells you which you got.
 
-**Webhook verification differs too, and one is weaker than the other.** Wave signs the body with HMAC-SHA256 and a rotating secret. Orange does not sign anything: it issues a `notif_token` when the payment is created and sends the same token back, so verification means comparing it against the one you stored. That makes the token a bearer secret travelling in the request body, only as safe as the transport. Serve the notification URL over HTTPS and treat the token as a credential.
+Webhook verification differs too, and one is weaker than the other. Wave signs the body with HMAC-SHA256 and a rotating secret. Orange does not sign anything: it issues a `notif_token` when the payment is created and sends the same token back, so verification means comparing it against the one you stored. That makes the token a bearer secret travelling in the request body, only as safe as the transport. Serve the notification URL over HTTPS and treat the token as a credential.
 
 Because Orange needs a lookup this package cannot perform on its own, you have to teach it how:
 
@@ -139,7 +139,7 @@ MobileMoney::driver('orange_money')->resolveNotifTokenUsing(
 
 Without a resolver, verification returns false for every callback. That is deliberate. The alternative is an endpoint that marks any order paid on request.
 
-**On "sandbox verified".** Every driver is written against the provider's published API contract and covered by tests that assert the exact request shape. That column only says yes when a real transaction has cleared, and none has. Treat the rest as documented rather than proven, and run your own sandbox test before going live.
+On "sandbox verified". Every driver is written against the provider's published API contract and covered by tests that assert the exact request shape. That column only says yes when a real transaction has cleared, and none has. Treat the rest as documented rather than proven, and run your own sandbox test before going live.
 
 MTN says **partly** because a run on 9 September 2026 got further than the others and is worth being precise about. Verified against the live sandbox: API user provisioning, token acquisition, `202` with an empty body on the initiating call, the pending to settled transition on a real clock, and the reason strings the provider actually returns. Not verified: the `/collection/` endpoints themselves, because MTN has hit Azure's 25,000 subscription cap on its Collections product and no new developer can subscribe to it, so the shared endpoints had to stand in. Also not verified: the zero decimal handling, because the sandbox settles in EUR whatever market you target, and answers `XOF` with `HTTP 500 INVALID_CURRENCY`.
 
@@ -224,7 +224,7 @@ Callbacks in this region are lost often enough that relying on them alone strand
 Schedule::command('mobile-money:reconcile')->everyMinute();
 ```
 
-The backoff lives on each row, so running every minute costs nothing for payments that are not due. Polling gives up once the configured schedule is exhausted, and `PaymentStatus::Unknown`, the state a timeout leaves behind, is picked up rather than treated as final.
+The backoff lives on each row, so running every minute costs nothing for payments that are not due. Polling gives up once the configured schedule is exhausted, and `PaymentStatus::Unknown`, the state a timeout leaves behind, is picked up instead of treated as final.
 
 ### Persistence
 
@@ -248,7 +248,7 @@ The webhook tests are the ones worth reading. They cover a tampered body, a sign
 Adding a provider means implementing `Contracts\Provider`, plus `VerifiesWebhooks` if it signs callbacks. Two rules:
 
 1. **Assert the wire format.** A test that only checks a driver returns a `Transaction` proves nothing. Assert the request body and headers.
-2. **Map failures honestly.** If the provider flattens "declined" and "timed out" into one code, separate them. If you cannot tell, return `Unknown` rather than guessing.
+2. **Map failures honestly.** If the provider flattens "declined" and "timed out" into one code, separate them. If you cannot tell, return `Unknown` instead of guessing.
 
 ## License
 
