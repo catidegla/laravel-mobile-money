@@ -135,7 +135,7 @@ MobileMoney::driver('orange_money')->resolveNotifTokenUsing(
 
 Without a resolver, verification returns false for every callback. That is deliberate. The alternative is an endpoint that marks any order paid on request.
 
-**On "sandbox verified".** Every driver is written against the provider's published API contract and covered by tests that assert the exact request shape. None has yet been run against a live provider sandbox, which needs merchant credentials from each one. That column will only say yes when a real transaction has cleared. Until then, treat the contract as documented rather than proven, and run your own sandbox test before going live.
+**On "sandbox verified".** Every driver is written against the provider's published API contract and covered by tests that assert the exact request shape. None has yet been run against a live provider sandbox, which needs merchant credentials from each one. That column will only say yes when a real transaction has cleared. Until then, treat the contract as documented rather than proven, and run your own sandbox test before going live. [SANDBOX.md](SANDBOX.md) is the exact procedure for changing that, including what a sandbox run can and cannot prove: MTN's settles in EUR, so it verifies the wire contract and never touches the zero decimal path.
 
 ## Install
 
