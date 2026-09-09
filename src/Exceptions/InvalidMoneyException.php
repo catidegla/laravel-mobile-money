@@ -47,6 +47,33 @@ final class InvalidMoneyException extends MobileMoneyException
         return new self(sprintf('Cannot combine %s with %s.%s', $a->value, $b->value, $extra));
     }
 
+    public static function notBrickMoney(object $given): self
+    {
+        return new self(sprintf(
+            'Money::fromBrick() expects a Brick\Money\Money, got %s. If you meant an ordinary '.
+            'amount, use Money::of() instead.',
+            $given::class,
+        ));
+    }
+
+    public static function unsupportedCurrency(string $code): self
+    {
+        return new self(sprintf(
+            'This package does not carry %s. It covers the currencies its providers settle in; '.
+            'add the case to Catidegla\MobileMoney\Enums\Currency if you need it, and check '.
+            'that the exponent there matches ISO 4217.',
+            $code,
+        ));
+    }
+
+    public static function brickNotInstalled(): self
+    {
+        return new self(
+            'Money::toBrick() needs brick/money, which is an optional dependency here. '.
+            'Run "composer require brick/money".',
+        );
+    }
+
     public static function negativeFactor(float $factor): self
     {
         return new self(sprintf('Multiplier cannot be negative, got %s.', $factor));

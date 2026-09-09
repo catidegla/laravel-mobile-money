@@ -17,8 +17,12 @@ use Stringable;
  *
  * For XOF and the other zero-decimal currencies the minor unit and the major
  * unit are the same thing, so `Money::of(500, Currency::XOF)` is five hundred
- * francs, not five francs. This is the distinction that generic payment
- * libraries lose.
+ * francs, not five francs.
+ *
+ * This type exists because the drivers need one, not because the existing ones
+ * are wrong. brick/money and moneyphp/money both model ISO 4217 exponents
+ * correctly, and brick/money is the better money type by some distance. If you
+ * already hold one, `fromBrick()` takes it and nothing is recomputed.
  */
 final class Money implements JsonSerializable, Stringable
 {
@@ -64,6 +68,47 @@ final class Money implements JsonSerializable, Stringable
         }
 
         return new self($minor, $currency);
+    }
+
+    /**
+     * Build from a brick/money amount.
+     *
+     * The minor units come across exactly as they are, so nothing is
+     * reinterpreted on the way in and a zero-decimal currency cannot pick up a
+     * factor of a hundred crossing the boundary.
+     *
+     * Typed as object so the dependency stays optional: brick/money is a dev
+     * requirement here and a suggestion in composer.json, never a hard one.
+     */
+    public static function fromBrick(object $money): self
+    {
+        if (! method_exists($money, 'getMinorAmount') || ! method_exists($money, 'getCurrency')) {
+            throw InvalidMoneyException::notBrickMoney($money);
+        }
+
+        $code = $money->getCurrency()->getCurrencyCode();
+        $currency = Currency::tryFrom($code);
+
+        if ($currency === null) {
+            throw InvalidMoneyException::unsupportedCurrency($code);
+        }
+
+        return new self($money->getMinorAmount()->toInt(), $currency);
+    }
+
+    /**
+     * Hand the amount back to code that speaks brick/money.
+     *
+     * Returns object for the same reason fromBrick() accepts one. Calling this
+     * without brick/money installed is a configuration mistake, so it says so.
+     */
+    public function toBrick(): object
+    {
+        if (! class_exists('Brick\Money\Money')) {
+            throw InvalidMoneyException::brickNotInstalled();
+        }
+
+        return \Brick\Money\Money::ofMinor($this->minorUnits, $this->currency->value);
     }
 
     /**

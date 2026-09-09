@@ -2,6 +2,17 @@
 
 All notable changes to this package are documented here. This project follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.0
+
+### Added
+
+- **`Money::fromBrick()` and `Money::toBrick()`.** [brick/money](https://github.com/brick/money) is the better money type and this package does not compete with it. If you already hold a `Brick\Money\Money`, hand it over: the minor units cross exactly as they are, so a zero-decimal currency cannot pick up a factor of a hundred at the boundary. brick/money stays an optional dependency, listed under `suggest` and required only for the tests.
+- A currency brick/money carries and this package does not is refused with a message naming the code and pointing at the enum, instead of a bare `ValueError` from `Currency::from()`.
+
+### Changed
+
+- **Repositioned around the provider layer.** The README, the package description and the `Money` docblock all led with zero-decimal currency handling, which implied that no PHP money library models ISO 4217 exponents. brick/money ships the full table with XOF at zero, and moneyphp/money handles exponents too. The provider drivers, idempotency, webhook verification and reconciliation are what this package actually adds, so that is what it says now.
+
 ## 0.2.1
 
 ### Fixed

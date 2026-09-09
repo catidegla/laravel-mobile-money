@@ -131,6 +131,49 @@ final class MoneyTest extends TestCase
     }
 
     #[Test]
+    public function it_accepts_a_brick_money_without_reinterpreting_the_amount(): void
+    {
+        // The whole hazard at a boundary like this is a zero-decimal currency
+        // picking up a factor of a hundred. brick/money already holds 1500 XOF
+        // as 1500 minor units, so the crossing has to be a straight copy.
+        $brick = \Brick\Money\Money::of(1500, 'XOF');
+
+        $money = Money::fromBrick($brick);
+
+        $this->assertSame(1500, $money->minorUnits);
+        $this->assertSame(Currency::XOF, $money->currency);
+        $this->assertSame('1500', $money->forProvider());
+    }
+
+    #[Test]
+    public function a_two_decimal_brick_money_crosses_as_minor_units(): void
+    {
+        $money = Money::fromBrick(\Brick\Money\Money::of('15.50', 'USD'));
+
+        $this->assertSame(1550, $money->minorUnits);
+        $this->assertSame('15.50', $money->forProvider());
+    }
+
+    #[Test]
+    public function it_round_trips_through_brick_money(): void
+    {
+        $original = Money::of(1500, Currency::XOF);
+
+        $returned = Money::fromBrick($original->toBrick());
+
+        $this->assertTrue($original->equals($returned));
+    }
+
+    #[Test]
+    public function a_currency_this_package_does_not_carry_is_refused_with_a_useful_message(): void
+    {
+        $this->expectException(InvalidMoneyException::class);
+        $this->expectExceptionMessageMatches('/does not carry JPY/');
+
+        Money::fromBrick(\Brick\Money\Money::of(1500, 'JPY'));
+    }
+
+    #[Test]
     public function arithmetic_never_drifts(): void
     {
         // The classic float failure: 0.1 + 0.2 !== 0.3.

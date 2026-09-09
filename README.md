@@ -2,9 +2,9 @@
 
 # Laravel Mobile Money
 
-**One Laravel API for West and Central African mobile money.**
+**Three mobile money networks behind one Laravel interface.**
 
-Correct XOF. Numbering-plan aware phone parsing. Idempotent collections. Honest asynchronous state.
+MTN MoMo, Wave and Orange Money. Idempotent collections, verified webhooks, numbering-plan aware phone parsing, and reconciliation for the callbacks that never arrive.
 
 [![Tests](https://github.com/catidegla/laravel-mobile-money/actions/workflows/tests.yml/badge.svg)](https://github.com/catidegla/laravel-mobile-money/actions/workflows/tests.yml)
 [![PHP](https://img.shields.io/badge/php-%E2%89%A58.2-777bb4)](composer.json)
@@ -45,6 +45,8 @@ There is no shortage of PHP packages in this space. They fall into two groups, a
 **Single provider SDKs** go direct, which is the other side of that trade, but each covers one provider. `faso-dev/orange-money-burkina-sdk` is Orange Money in Burkina Faso, `opsofts/laravel-mtn-momo` is MTN collections. Reaching three networks means installing three of them and then writing the layer underneath yourself: one amount type, one phone parser, one status enum, one idempotency story. That layer is most of the work and nearly all of the risk, and it is what the rest of this README is about.
 
 This package is the second option with that layer already written. Direct to each provider, nobody in the payment path who does not have to be, one interface across all of them.
+
+To be clear about where the value is: the money type here is the least interesting part, and [brick/money](https://github.com/brick/money) does that job better. The provider layer is the reason to install this. `Money::fromBrick()` and `Money::toBrick()` interoperate with it and the dependency is never required, so you can keep brick/money as your money type and use this only for the thing it is actually for.
 
 Figures were checked on Packagist on 8 September 2026. Note also that `mmchrist89/laravel-mobile-money` shares this package's name under a different vendor; it targets MTN and Airtel, has no tagged release, and has not changed since February 2026.
 

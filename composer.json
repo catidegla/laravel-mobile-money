@@ -1,69 +1,76 @@
 {
-  "name": "catidegla/laravel-mobile-money",
-  "description": "One Laravel API for West and Central African mobile money. MTN MoMo, Wave and Orange Money, with correct XOF handling, numbering-plan aware phone parsing, verified webhooks, idempotent collections and reconciliation for callbacks that never arrive.",
-  "keywords": [
-    "laravel",
-    "mobile-money",
-    "payments",
-    "orange-money",
-    "mtn-momo",
-    "wave",
-    "moov",
-    "kkiapay",
-    "cinetpay",
-    "paydunya",
-    "xof",
-    "west-africa",
-    "francophone",
-    "fintech"
-  ],
-  "homepage": "https://github.com/catidegla/laravel-mobile-money",
-  "license": "MIT",
-  "authors": [
-    {
-      "name": "Christ-loisele Atidegla",
-      "homepage": "https://github.com/catidegla",
-      "role": "Developer"
+    "name": "catidegla/laravel-mobile-money",
+    "description": "One Laravel API across MTN MoMo, Wave and Orange Money: per-provider drivers, idempotent collections, verified webhooks, numbering-plan aware phone parsing and reconciliation for callbacks that never arrive. Works with brick/money.",
+    "keywords": [
+        "laravel",
+        "mobile-money",
+        "payments",
+        "payment-gateway",
+        "mtn-momo",
+        "orange-money",
+        "wave",
+        "moov",
+        "kkiapay",
+        "cinetpay",
+        "paydunya",
+        "west-africa",
+        "francophone",
+        "xof",
+        "fintech",
+        "webhooks",
+        "idempotency"
+    ],
+    "homepage": "https://github.com/catidegla/laravel-mobile-money",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Christ-loisele Atidegla",
+            "homepage": "https://github.com/catidegla",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/contracts": "^12.0",
+        "illuminate/database": "^12.0",
+        "illuminate/http": "^12.0",
+        "illuminate/support": "^12.0"
+    },
+    "require-dev": {
+        "brick/money": "^0.11.2",
+        "orchestra/testbench": "^10.0",
+        "phpunit/phpunit": "^11.0|^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Catidegla\\MobileMoney\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Catidegla\\MobileMoney\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test-coverage": "vendor/bin/phpunit --coverage-text"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Catidegla\\MobileMoney\\MobileMoneyServiceProvider"
+            ],
+            "aliases": {
+                "MobileMoney": "Catidegla\\MobileMoney\\Facades\\MobileMoney"
+            }
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "suggest": {
+        "brick/money": "For a fuller money type. Money::fromBrick() and toBrick() interoperate with it, and this package never requires it."
     }
-  ],
-  "require": {
-    "php": "^8.2",
-    "illuminate/contracts": "^12.0",
-    "illuminate/database": "^12.0",
-    "illuminate/http": "^12.0",
-    "illuminate/support": "^12.0"
-  },
-  "require-dev": {
-    "orchestra/testbench": "^10.0",
-    "phpunit/phpunit": "^11.0|^12.0"
-  },
-  "autoload": {
-    "psr-4": {
-      "Catidegla\\MobileMoney\\": "src/"
-    }
-  },
-  "autoload-dev": {
-    "psr-4": {
-      "Catidegla\\MobileMoney\\Tests\\": "tests/"
-    }
-  },
-  "scripts": {
-    "test": "vendor/bin/phpunit",
-    "test-coverage": "vendor/bin/phpunit --coverage-text"
-  },
-  "config": {
-    "sort-packages": true
-  },
-  "extra": {
-    "laravel": {
-      "providers": [
-        "Catidegla\\MobileMoney\\MobileMoneyServiceProvider"
-      ],
-      "aliases": {
-        "MobileMoney": "Catidegla\\MobileMoney\\Facades\\MobileMoney"
-      }
-    }
-  },
-  "minimum-stability": "stable",
-  "prefer-stable": true
 }
