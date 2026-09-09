@@ -99,6 +99,38 @@ final class MoneyTest extends TestCase
     }
 
     #[Test]
+    public function a_fee_landing_exactly_on_half_a_unit_does_not_always_favour_the_merchant(): void
+    {
+        // Half up would send both of these up. Half to even splits them, which
+        // is the whole point: the error still exists on any single fee, but it
+        // stops pointing the same way every time.
+        $this->assertSame(2, Money::ofMinor(5, Currency::XOF)->multiply(0.5)->minorUnits);
+        $this->assertSame(4, Money::ofMinor(7, Currency::XOF)->multiply(0.5)->minorUnits);
+    }
+
+    #[Test]
+    public function the_rounding_bias_cancels_across_many_fees(): void
+    {
+        $halfEven = 0;
+        $halfUp = 0;
+
+        // Every odd amount halved lands exactly on .5, so this is the worst
+        // case rather than a representative one.
+        for ($francs = 1; $francs <= 999; $francs += 2) {
+            $amount = Money::ofMinor($francs, Currency::XOF);
+            $halfEven += $amount->multiply(0.5)->minorUnits;
+            $halfUp += $amount->multiply(0.5, PHP_ROUND_HALF_UP)->minorUnits;
+        }
+
+        // 500 fees, each biased upward by a franc half the time.
+        $this->assertSame(250, $halfUp - $halfEven);
+
+        // The exact total matters less than the direction: half up never
+        // returns less than half to even, so the drift only ever goes one way.
+        $this->assertGreaterThan($halfEven, $halfUp);
+    }
+
+    #[Test]
     public function arithmetic_never_drifts(): void
     {
         // The classic float failure: 0.1 + 0.2 !== 0.3.

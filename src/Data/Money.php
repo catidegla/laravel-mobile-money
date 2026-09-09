@@ -120,16 +120,27 @@ final class Money implements JsonSerializable, Stringable
     }
 
     /**
-     * Multiply by a rate, for fees. Rounds half up at the minor unit, which for
-     * XOF means whole francs, because a provider cannot move half a franc.
+     * Multiply by a rate, for fees.
+     *
+     * The result has to land on a whole minor unit, which for XOF means a whole
+     * franc, because no provider can move half of one. Something has to give,
+     * and the question is which way.
+     *
+     * Half to even, not half up. Half up sends every exact .5 in the same
+     * direction, which on a fee is always the merchant's direction, and across
+     * a few hundred thousand transactions that is a real transfer of money
+     * taken a franc at a time from people who will never notice. Half to even
+     * sends half of them each way and the bias cancels.
+     *
+     * Pass a different mode if a tax authority requires one, because some do.
      */
-    public function multiply(float $factor): self
+    public function multiply(float $factor, int $rounding = PHP_ROUND_HALF_EVEN): self
     {
         if ($factor < 0) {
             throw InvalidMoneyException::negativeFactor($factor);
         }
 
-        return new self((int) round($this->minorUnits * $factor), $this->currency);
+        return new self((int) round($this->minorUnits * $factor, 0, $rounding), $this->currency);
     }
 
     public function isZero(): bool

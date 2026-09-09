@@ -2,6 +2,16 @@
 
 All notable changes to this package are documented here. This project follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.1
+
+### Fixed
+
+- **`Money::multiply()` rounds half to even rather than half up.** It is the one place in the package that has to round, because a percentage fee on an odd number of francs lands on a half and no provider can move half of one. It was using PHP's `round()`, whose default is half away from zero, and the docblock presented that as a decision rather than a default nobody had questioned. On a fee, half up sends every exact `.5` in the merchant's direction. Across the worst case now covered by a test, every odd amount from 1 to 999 halved, half up comes out 250 francs above half to even, and that difference is money taken from customers a franc at a time. The rounding mode is exposed as a second parameter, since some tax authorities mandate a specific one.
+
+  Raised by [dshafik](https://www.reddit.com/r/PHP/comments/1wbcoh2/) on r/PHP.
+
+  This changes the result of a public method. If you depended on half up, pass `PHP_ROUND_HALF_UP` explicitly.
+
 ## 0.2.0
 
 First release with anything verified against a live provider sandbox rather than only against the published contract. See [SANDBOX.md](SANDBOX.md) for the full run and what it does and does not prove.
