@@ -102,6 +102,24 @@ final class MtnMomoProvider implements Provider
             return $this->unknown($request, $reference, $e->getMessage());
         }
 
+        // A replayed X-Reference-Id comes back as 409 RESOURCE_ALREADY_EXIST.
+        // That is the idempotency key working, not a rejection: the first
+        // request was accepted and this one changed nothing. Throwing here
+        // would push a caller retrying after a timeout into issuing a fresh
+        // reference, which is the second charge the key exists to prevent.
+        // The state is whatever the original request reached, so report it as
+        // pending and let the caller poll for the truth.
+        if ($response->status() === 409) {
+            return new Transaction(
+                status: PaymentStatus::Pending,
+                amount: $request->amount,
+                reference: $reference,
+                provider: $this->name(),
+                payer: $request->payer,
+                raw: ['http_status' => 409, 'duplicate' => true],
+            );
+        }
+
         if ($response->status() !== 202) {
             throw ProviderException::rejected($this->name(), $response->status(), $this->errorBody($response));
         }

@@ -215,6 +215,70 @@ final class MtnMomoProviderTest extends TestCase
     }
 
     #[Test]
+    public function a_replayed_reference_is_not_reported_as_a_new_failure(): void
+    {
+        // Observed against the sandbox: sending an X-Reference-Id that MTN has
+        // already seen answers 409 RESOURCE_ALREADY_EXIST rather than creating
+        // a second transaction.
+        Http::fake($this->fakeToken() + [
+            self::BASE.'/collection/v1_0/requesttopay' => Http::sequence()
+                ->push('', 202)
+                ->push([
+                    'message' => 'Duplicated reference id. Creation of resource failed.',
+                    'code' => 'RESOURCE_ALREADY_EXIST',
+                ], 409),
+        ]);
+
+        $request = $this->request()->withIdempotencyKey('11111111-1111-4111-8111-111111111111');
+
+        $first = MobileMoney::driver('mtn_momo')->collect($request);
+        $replay = MobileMoney::driver('mtn_momo')->collect($request);
+
+        // The whole point of the key. A caller that times out and retries must
+        // land back on the original transaction, not on an exception that
+        // tempts them into issuing a fresh reference and paying twice.
+        $this->assertSame(PaymentStatus::Pending, $replay->status);
+        $this->assertSame($first->reference, $replay->reference);
+        $this->assertTrue($replay->raw['duplicate'] ?? false);
+    }
+
+    #[Test]
+    public function the_reason_the_sandbox_returns_for_a_decline_is_mapped(): void
+    {
+        // The sandbox returns APPROVAL_REJECTED for the declining test number,
+        // never the PAYER_REJECTION the published contract also lists. Both
+        // are mapped, but this is the one that has actually been seen.
+        Http::fake($this->fakeToken() + [
+            self::BASE.'/collection/v1_0/requesttopay/*' => Http::response([
+                'amount' => '1500', 'currency' => 'XOF', 'status' => 'FAILED', 'reason' => 'APPROVAL_REJECTED',
+            ]),
+        ]);
+
+        $transaction = MobileMoney::driver('mtn_momo')->status('11111111-1111-4111-8111-111111111111');
+
+        $this->assertSame(PaymentStatus::Cancelled, $transaction->status);
+        $this->assertStringContainsString('declined', (string) $transaction->failureReason);
+    }
+
+    #[Test]
+    public function an_internal_provider_error_stays_a_failure_and_says_to_poll_again(): void
+    {
+        // Also observed against the sandbox. It is a genuine failure, so it
+        // must not be softened into a cancellation, but the operator needs to
+        // know the state may still change.
+        Http::fake($this->fakeToken() + [
+            self::BASE.'/collection/v1_0/requesttopay/*' => Http::response([
+                'amount' => '1500', 'currency' => 'XOF', 'status' => 'FAILED', 'reason' => 'INTERNAL_PROCESSING_ERROR',
+            ]),
+        ]);
+
+        $transaction = MobileMoney::driver('mtn_momo')->status('11111111-1111-4111-8111-111111111111');
+
+        $this->assertSame(PaymentStatus::Failed, $transaction->status);
+        $this->assertStringContainsString('status again', (string) $transaction->failureReason);
+    }
+
+    #[Test]
     public function a_connection_failure_is_unknown_and_never_retryable(): void
     {
         Http::fake($this->fakeToken() + [
