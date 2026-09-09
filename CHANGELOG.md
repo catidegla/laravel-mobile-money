@@ -1,0 +1,33 @@
+# Changelog
+
+All notable changes to this package are documented here. This project follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
+
+## 0.2.0
+
+First release with anything verified against a live provider sandbox rather than only against the published contract. See [SANDBOX.md](SANDBOX.md) for the full run and what it does and does not prove.
+
+### Fixed
+
+- **A replayed `X-Reference-Id` no longer raises an exception.** MTN answers a repeated reference with `409 RESOURCE_ALREADY_EXIST`, which is the idempotency key working: the first request was accepted and the second changed nothing. The driver treated any non `202` response as a rejection and threw, so a caller whose request timed out and who retried with the same key, exactly what the key is for, got an error. The obvious next move for that caller is to issue a fresh reference and send it again, which is a second charge. `collect()` now returns the transaction as `Pending` with `raw['duplicate'] => true` and leaves the caller to poll for the real state.
+
+### Added
+
+- The reason codes MTN's sandbox actually returns, with tests. `APPROVAL_REJECTED` is what a decline produces and `EXPIRED` is what a timeout produces; `PAYER_REJECTION` and `PAYER_DELAYED` appear in the published contract but were never observed. `INTERNAL_PROCESSING_ERROR` is a genuine failure and stays one, with a message telling the operator to query the status again before retrying.
+- `CHANGELOG.md`.
+
+### Changed
+
+- `scripts/sandbox-mtn.mjs` distinguishes a reason the driver deliberately leaves as a plain failure from one it has never seen, instead of reporting both as gaps. It also explains a `401` on the token call, which almost always means the subscription key belongs to a different product.
+- The provider status table says **partly** for MTN and spells out which paths were exercised, rather than implying more or less than was actually run.
+
+## 0.1.0
+
+Initial release.
+
+- `collect()` and `status()` for MTN MoMo, Wave and Orange Money behind one `Provider` contract.
+- `Money` in integer minor units, so XOF and its zero decimals cannot be quietly rounded through a float.
+- `Msisdn` parsing and country detection for UEMOA and neighbouring markets.
+- `PaymentStatus` with an `Unknown` state for requests that time out, separated from `Failed` so a timeout never invites a retry that could charge twice.
+- Webhook verification: HMAC-SHA256 for Wave, `notif_token` comparison for Orange Money, with the token encrypted at rest.
+- Reconciliation command with per row backoff for payments left pending.
+- French and English translations, with a test asserting they stay in step.

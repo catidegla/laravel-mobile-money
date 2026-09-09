@@ -113,7 +113,7 @@ Providers also flatten distinctions that matter. MTN reports a customer declinin
 
 | Provider | Markets | Flow | Collections | Webhooks | Payouts | Sandbox verified |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: |
-| MTN MoMo | BJ, CI, CM, GN, GH, UG, RW | handset prompt | yes | planned | planned | **not yet** |
+| MTN MoMo | BJ, CI, CM, GN, GH, UG, RW | handset prompt | yes | planned | planned | **partly**, see below |
 | Wave | SN, CI | redirect | yes | yes, HMAC signed | planned | **not yet** |
 | Orange Money | CI, SN, ML, BF, CM, GN | redirect | yes | yes, token matched | planned | **not yet** |
 | Moov Africa | BJ, CI, TG, BF, ML | | planned | planned | planned | no |
@@ -135,7 +135,11 @@ MobileMoney::driver('orange_money')->resolveNotifTokenUsing(
 
 Without a resolver, verification returns false for every callback. That is deliberate. The alternative is an endpoint that marks any order paid on request.
 
-**On "sandbox verified".** Every driver is written against the provider's published API contract and covered by tests that assert the exact request shape. None has yet been run against a live provider sandbox, which needs merchant credentials from each one. That column will only say yes when a real transaction has cleared. Until then, treat the contract as documented rather than proven, and run your own sandbox test before going live. [SANDBOX.md](SANDBOX.md) is the exact procedure for changing that, including what a sandbox run can and cannot prove: MTN's settles in EUR, so it verifies the wire contract and never touches the zero decimal path.
+**On "sandbox verified".** Every driver is written against the provider's published API contract and covered by tests that assert the exact request shape. That column only says yes when a real transaction has cleared, and none has. Treat the rest as documented rather than proven, and run your own sandbox test before going live.
+
+MTN says **partly** because a run on 9 September 2026 got further than the others and is worth being precise about. Verified against the live sandbox: API user provisioning, token acquisition, `202` with an empty body on the initiating call, the pending to settled transition on a real clock, and the reason strings the provider actually returns. Not verified: the `/collection/` endpoints themselves, because MTN has hit Azure's 25,000 subscription cap on its Collections product and no new developer can subscribe to it, so the shared endpoints had to stand in. Also not verified: the zero decimal handling, because the sandbox settles in EUR whatever market you target, and answers `XOF` with `HTTP 500 INVALID_CURRENCY`.
+
+That run found a real bug. MTN answers a replayed `X-Reference-Id` with `409 RESOURCE_ALREADY_EXIST`, and the driver was throwing on it, which would have pushed a caller retrying after a timeout into issuing a fresh reference and charging the customer twice. Fixed in 0.2.0. [SANDBOX.md](SANDBOX.md) has the full procedure, the observed reason code table, and what each result does and does not prove.
 
 ## Install
 

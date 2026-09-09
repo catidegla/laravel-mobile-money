@@ -135,7 +135,17 @@ async function main() {
   });
 
   if (!tokened.body?.access_token) {
-    die(`Fetching a token returned ${tokened.status}.`, tokened.text.slice(0, 200));
+    die(
+      `Fetching a token returned ${tokened.status}.`,
+      tokened.status === 401
+        ? [
+            'Subscription keys are scoped to one product, and this one does not cover Collections.',
+            'Check your profile lists a Collections subscription rather than Disbursements or',
+            'Remittances. If subscribing to Collections fails silently with a 400, MTN has hit the',
+            '25,000 subscription cap on that product and nobody can join it. See SANDBOX.md.',
+          ].join('\n  ')
+        : tokened.text.slice(0, 200),
+    );
   }
 
   const token = tokened.body.access_token;
@@ -208,18 +218,46 @@ async function main() {
     console.log(`  | ${r.msisdn} | ${r.accepted} | ${r.status} | ${r.reason || '(none)'} |`);
   }
 
-  const known = new Set(['PAYER_REJECTION', 'APPROVAL_REJECTED', 'EXPIRED', 'PAYER_DELAYED']);
-  const unknown = results.map((r) => r.reason).filter((r) => r && !known.has(r.toUpperCase()));
+  /*
+   * Two different questions, and conflating them produces false alarms.
+   *
+   * REASON_MAP holds the reasons that are not really failures, so a decline is
+   * not confused with a technical fault. A reason missing from it is only a bug
+   * if it belongs there. INTERNAL_PROCESSING_ERROR, for instance, is a genuine
+   * failure and stays one on purpose.
+   *
+   * describeReason() holds every reason the driver can put into words. A reason
+   * missing from that one is a reason nobody has ever seen, and that is the
+   * finding worth reporting.
+   */
+  const described = new Set([
+    'PAYER_REJECTION',
+    'APPROVAL_REJECTED',
+    'EXPIRED',
+    'PAYER_DELAYED',
+    'PAYER_NOT_FOUND',
+    'NOT_ENOUGH_FUNDS',
+    'PAYER_LIMIT_REACHED',
+    'PAYEE_NOT_ALLOWED_TO_RECEIVE',
+    'INTERNAL_PROCESSING_ERROR',
+  ]);
+
+  const seen = [...new Set(results.map((r) => (r.reason || '').toUpperCase()).filter(Boolean))];
+  const unseen = seen.filter((r) => !described.has(r));
 
   console.log('');
 
-  if (unknown.length) {
-    console.log('  Reason codes NOT in the driver\'s REASON_MAP:');
-    for (const r of [...new Set(unknown)]) console.log(`    ${r}`);
-    console.log('\n  Each of those is currently reported as a plain failure. Add them to');
-    console.log('  MtnMomoProvider::REASON_MAP with a test, or open an issue.');
+  if (unseen.length) {
+    console.log('  Reason codes the driver has never heard of:');
+    for (const r of unseen) console.log(`    ${r}`);
+    console.log('\n  Each of those reaches the caller as a bare code with no explanation.');
+    console.log('  Add them to describeReason(), and to REASON_MAP if they are a customer');
+    console.log('  decision rather than a fault. Then open an issue with this table.');
+  } else if (seen.length) {
+    console.log(`  Every reason returned is one the driver handles: ${seen.join(', ')}.`);
   } else {
-    console.log('  Every reason returned is already handled by REASON_MAP.');
+    console.log('  No failure reasons came back at all, which usually means none of the');
+    console.log('  numbers above were treated as test numbers. Check them against SANDBOX.md.');
   }
 
   console.log('\n  This verified the wire contract. It did not verify XOF handling,');
