@@ -30,7 +30,23 @@ final class ProviderException extends MobileMoneyException
             'have indexed it yet, so treat it as pending rather than lost.',
             $provider,
             $reference,
-        )))->withContext(['provider' => $provider, 'reference' => $reference]);
+        )))->withContext(['provider' => $provider, 'reference' => $reference, 'kind' => 'not_found']);
+    }
+
+    /**
+     * Whether the provider said it has never heard of this reference.
+     *
+     * Worth telling apart from every other provider failure, because it is the
+     * only one that might mean the request never arrived rather than that the
+     * answer is temporarily unavailable. Might: whether a given provider
+     * returns 404 for a reference it never received, as opposed to one it has
+     * simply not indexed yet, is not something this package has verified
+     * against any live sandbox. So the distinction is surfaced and nothing is
+     * concluded from it.
+     */
+    public function isNotFound(): bool
+    {
+        return ($this->context['kind'] ?? null) === 'not_found';
     }
 
     public static function unsupported(string $provider, string $currency, string $country): self

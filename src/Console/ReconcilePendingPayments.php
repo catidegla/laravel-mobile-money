@@ -6,6 +6,7 @@ namespace Catidegla\MobileMoney\Console;
 
 use Catidegla\MobileMoney\Events\PaymentFailed;
 use Catidegla\MobileMoney\Events\PaymentSucceeded;
+use Catidegla\MobileMoney\Exceptions\ProviderException;
 use Catidegla\MobileMoney\MobileMoneyManager;
 use Catidegla\MobileMoney\Models\MobileMoneyTransaction;
 use Catidegla\MobileMoney\Providers\OrangeMoneyProvider;
@@ -57,6 +58,7 @@ class ReconcilePendingPayments extends Command
         $failed = 0;
         $stillOpen = 0;
         $errored = 0;
+        $unrecognised = 0;
 
         foreach ($due as $record) {
             try {
@@ -67,6 +69,28 @@ class ReconcilePendingPayments extends Command
                 $result = $driver instanceof OrangeMoneyProvider
                     ? $driver->statusFor($record->reference, $record->money(), (string) $record->provider_reference)
                     : $driver->status((string) ($record->provider_reference ?: $record->reference));
+            } catch (ProviderException $e) {
+                $record->scheduleNextPoll();
+
+                // A provider saying it has never heard of the reference is the
+                // one failure that might mean the request never arrived, as
+                // opposed to the answer being temporarily unavailable. It is
+                // counted apart so it is visible in the summary rather than
+                // buried among unreachable providers.
+                //
+                // Nothing is concluded from it. Whether a 404 distinguishes
+                // "never received" from "not indexed yet" has not been verified
+                // against a live sandbox, and a payments package is the wrong
+                // place to act on an assumption about that.
+                if ($e->isNotFound()) {
+                    $unrecognised++;
+                    $this->warn("{$record->reference}: not recognised by {$record->provider}, still polling");
+                } else {
+                    $errored++;
+                    $this->warn("{$record->reference}: {$e->getMessage()}");
+                }
+
+                continue;
             } catch (Throwable $e) {
                 // One unreachable provider must not stop the run.
                 $errored++;
@@ -94,12 +118,13 @@ class ReconcilePendingPayments extends Command
         }
 
         $this->info(sprintf(
-            'Checked %d: %d settled, %d failed, %d still open, %d could not be reached.',
+            'Checked %d: %d settled, %d failed, %d still open, %d could not be reached, %d not recognised.',
             $due->count(),
             $settled,
             $failed,
             $stillOpen,
             $errored,
+            $unrecognised,
         ));
 
         return self::SUCCESS;

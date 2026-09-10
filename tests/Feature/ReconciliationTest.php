@@ -208,4 +208,30 @@ final class ReconciliationTest extends TestCase
 
         Http::assertNothingSent();
     }
+
+    #[Test]
+    public function a_reference_the_provider_does_not_recognise_is_counted_apart(): void
+    {
+        // The one failure that might mean the request never arrived, rather
+        // than that the answer is temporarily unavailable. It stays polled,
+        // because nothing here has verified what a 404 distinguishes, but it
+        // no longer hides among unreachable providers.
+        $record = $this->pending();
+
+        Http::fake([
+            self::BASE.'/collection/token/' => Http::response([
+                'access_token' => 't', 'token_type' => 'Bearer', 'expires_in' => 3600,
+            ]),
+            self::BASE.'/collection/v1_0/requesttopay/*' => Http::response('', 404),
+        ]);
+
+        $this->artisan('mobile-money:reconcile')
+            ->expectsOutputToContain('not recognised by mtn_momo')
+            ->expectsOutputToContain('1 not recognised')
+            ->assertExitCode(0);
+
+        // Still open and still scheduled: a 404 resolves nothing on its own.
+        $this->assertSame(PaymentStatus::Pending, $record->refresh()->status);
+        $this->assertNotNull($record->next_poll_at);
+    }
 }

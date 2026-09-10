@@ -2,6 +2,13 @@
 
 All notable changes to this package are documented here. This project follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.1
+
+### Changed
+
+- **A reference the provider does not recognise is counted apart from one it could not answer for.** The driver already threw a distinct `notFound` on a 404 and the reconciler caught `Throwable` and rescheduled, so the one failure that might mean the request never arrived was indistinguishable from an unreachable provider. It now has its own line in the summary and its own warning. Nothing is concluded from it: whether a 404 separates "never received" from "not indexed yet" is not verified against any live sandbox, and MTN's Collections sandbox cannot be joined to find out, because it sits at the Azure per-product cap of 25,000 subscriptions. So the row stays open and stays polled, and the signal is merely visible instead of discarded. Raised by [@anywaydani](https://x.com/anywaydani).
+- `ProviderException::isNotFound()` exposes the same distinction to calling code.
+
 ## 0.4.0
 
 ### Added
