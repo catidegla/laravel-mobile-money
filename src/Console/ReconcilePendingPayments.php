@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Catidegla\MobileMoney\Console;
 
+use Catidegla\MobileMoney\Data\Transaction;
+use Catidegla\MobileMoney\Enums\PaymentStatus;
 use Catidegla\MobileMoney\Events\PaymentFailed;
 use Catidegla\MobileMoney\Events\PaymentSucceeded;
 use Catidegla\MobileMoney\Exceptions\ProviderException;
@@ -70,18 +72,28 @@ class ReconcilePendingPayments extends Command
                     ? $driver->statusFor($record->reference, $record->money(), (string) $record->provider_reference)
                     : $driver->status((string) ($record->provider_reference ?: $record->reference));
             } catch (ProviderException $e) {
+                // A provider saying it has never heard of the reference means
+                // one of two things and does not say which: it never received
+                // the request, or it received one it has not indexed yet.
+                //
+                // On its own that is not something to act on, and this command
+                // used to stop there. What settles it is the other half of the
+                // evidence, which is on our side rather than theirs. If the
+                // connection carrying that request never opened, the provider
+                // cannot be holding it, and the two facts together say the
+                // payment does not exist rather than that it is slow.
+                if ($e->isNotFound() && $record->delivery?->provesNeverArrived()) {
+                    $closed = $this->neverArrived($record);
+                    $record->applyTransaction($closed);
+                    PaymentFailed::dispatch($record, $closed);
+                    $failed++;
+                    $this->warn("{$record->reference}: never sent and unknown to {$record->provider}, closed");
+
+                    continue;
+                }
+
                 $record->scheduleNextPoll();
 
-                // A provider saying it has never heard of the reference is the
-                // one failure that might mean the request never arrived, as
-                // opposed to the answer being temporarily unavailable. It is
-                // counted apart so it is visible in the summary rather than
-                // buried among unreachable providers.
-                //
-                // Nothing is concluded from it. Whether a 404 distinguishes
-                // "never received" from "not indexed yet" has not been verified
-                // against a live sandbox, and a payments package is the wrong
-                // place to act on an assumption about that.
                 if ($e->isNotFound()) {
                     $unrecognised++;
                     $this->warn("{$record->reference}: not recognised by {$record->provider}, still polling");
@@ -117,6 +129,9 @@ class ReconcilePendingPayments extends Command
             }
         }
 
+        // Rows closed as never sent are counted under failed rather than given
+        // a category of their own. From the order's point of view they are the
+        // same event, and why it happened is on the row.
         $this->info(sprintf(
             'Checked %d: %d settled, %d failed, %d still open, %d could not be reached, %d not recognised.',
             $due->count(),
@@ -128,5 +143,33 @@ class ReconcilePendingPayments extends Command
         ));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * The result for a payment we can show was never sent.
+     *
+     * Failed rather than Unknown, and that is the whole point of the column it
+     * rests on. Unknown exists because a retry might be a second charge, so it
+     * blocks one; here there is nothing to charge twice, because the request
+     * never left this process and the provider has confirmed it is holding
+     * nothing. Closing it releases the order to be paid again.
+     */
+    private function neverArrived(MobileMoneyTransaction $record): Transaction
+    {
+        return new Transaction(
+            status: PaymentStatus::Failed,
+            amount: $record->money(),
+            reference: $record->reference,
+            provider: $record->provider,
+            providerReference: $record->provider_reference,
+            payer: $record->payer(),
+            failureCode: 'never_sent',
+            failureReason: sprintf(
+                'The request never left this process, and %s does not recognise the reference. '.
+                'No payment was created, so this order can be attempted again.',
+                $record->provider,
+            ),
+            raw: ['closed_by' => 'reconciler', 'delivery' => $record->delivery?->value],
+        );
     }
 }

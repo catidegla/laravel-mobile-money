@@ -9,6 +9,7 @@ use Catidegla\MobileMoney\Data\Money;
 use Catidegla\MobileMoney\Data\Msisdn;
 use Catidegla\MobileMoney\Data\Transaction;
 use Catidegla\MobileMoney\Enums\Currency;
+use Catidegla\MobileMoney\Enums\Delivery;
 use Catidegla\MobileMoney\Enums\PaymentStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -26,6 +27,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
  * @property string $idempotency_key
  * @property string $provider
  * @property PaymentStatus $status
+ * @property ?Delivery $delivery
  * @property int $amount_minor
  * @property Currency $currency
  */
@@ -39,6 +41,7 @@ class MobileMoneyTransaction extends Model
     {
         return [
             'status' => PaymentStatus::class,
+            'delivery' => Delivery::class,
             'currency' => Currency::class,
             'amount_minor' => 'integer',
             'poll_attempts' => 'integer',
@@ -77,6 +80,7 @@ class MobileMoneyTransaction extends Model
             'idempotency_key' => $request->idempotencyKey,
             'provider' => $provider,
             'status' => PaymentStatus::Claimed,
+            'delivery' => Delivery::Unattempted,
             'amount_minor' => $request->amount->minorUnits,
             'currency' => $request->amount->currency,
             'payer_msisdn' => $request->payer->e164(),
@@ -118,6 +122,25 @@ class MobileMoneyTransaction extends Model
     }
 
     /**
+     * Note what our own side saw of an attempt to send this request.
+     *
+     * Separate from applyTransaction() because the two answer different
+     * questions and can happen apart: a rejection tells us the provider has
+     * the request while giving us nothing to fold into the payment's state.
+     */
+    public function recordDelivery(Delivery $delivery): self
+    {
+        $merged = ($this->delivery ?? Delivery::Unattempted)->strongest($delivery);
+
+        if ($merged !== $this->delivery) {
+            $this->delivery = $merged;
+            $this->save();
+        }
+
+        return $this;
+    }
+
+    /**
      * The row as the shape the drivers return, for answering without a call.
      *
      * Used when a claim turns out to be already settled, where calling the
@@ -133,6 +156,7 @@ class MobileMoneyTransaction extends Model
             providerReference: $this->provider_reference,
             payer: $this->payer(),
             redirectUrl: $this->redirect_url,
+            delivery: $this->delivery,
             failureCode: $this->failure_code,
             failureReason: $this->failure_reason,
             completedAt: $this->completed_at?->toDateTimeImmutable(),
@@ -149,6 +173,16 @@ class MobileMoneyTransaction extends Model
      */
     public function applyTransaction(Transaction $transaction): self
     {
+        // Merged rather than assigned, and merged first so it survives the
+        // early return below. What the row has to remember is whether the
+        // provider ever saw the request, so the strongest evidence across all
+        // attempts wins and a later refused connection cannot unsay an earlier
+        // delivery. A result carrying no observation, which is every status()
+        // call, leaves it alone.
+        if ($transaction->delivery !== null) {
+            $this->delivery = ($this->delivery ?? Delivery::Unattempted)->strongest($transaction->delivery);
+        }
+
         if ($this->status->isSettled() && ! $transaction->status->isSettled()) {
             // Record that we saw it, but do not change the outcome.
             $this->raw = ['superseded' => $transaction->jsonSerialize()] + ($this->raw ?? []);

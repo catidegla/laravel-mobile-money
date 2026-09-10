@@ -13,6 +13,7 @@ use Catidegla\MobileMoney\Enums\Currency;
 use Catidegla\MobileMoney\Enums\PaymentStatus;
 use Catidegla\MobileMoney\Exceptions\ProviderException;
 use DateTimeImmutable;
+use Catidegla\MobileMoney\Enums\Delivery;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
@@ -99,7 +100,11 @@ final class MtnMomoProvider implements Provider
         } catch (ConnectionException $e) {
             // We do not know whether MTN received this. Reporting it as failed
             // would invite a retry, and a retry might be a second charge.
-            return $this->unknown($request, $reference, $e->getMessage());
+            //
+            // What we can record is what our own side saw, which is the only
+            // evidence that will ever separate a request MTN never got from
+            // one it has not indexed yet.
+            return $this->unknown($request, $reference, $e->getMessage(), Delivery::classify($e));
         }
 
         // A replayed X-Reference-Id comes back as 409 RESOURCE_ALREADY_EXIST.
@@ -117,6 +122,7 @@ final class MtnMomoProvider implements Provider
                 provider: $this->name(),
                 payer: $request->payer,
                 raw: ['http_status' => 409, 'duplicate' => true],
+                delivery: Delivery::Delivered,
             );
         }
 
@@ -131,6 +137,7 @@ final class MtnMomoProvider implements Provider
             provider: $this->name(),
             payer: $request->payer,
             raw: ['http_status' => 202],
+            delivery: Delivery::Delivered,
         );
     }
 
@@ -220,7 +227,7 @@ final class MtnMomoProvider implements Provider
         };
     }
 
-    private function unknown(CollectionRequest $request, string $reference, string $why): Transaction
+    private function unknown(CollectionRequest $request, string $reference, string $why, Delivery $delivery): Transaction
     {
         return new Transaction(
             status: PaymentStatus::Unknown,
@@ -229,7 +236,8 @@ final class MtnMomoProvider implements Provider
             provider: $this->name(),
             payer: $request->payer,
             failureReason: $why,
-            raw: ['error' => 'connection', 'detail' => $why],
+            raw: ['error' => 'connection', 'detail' => $why, 'delivery' => $delivery->value],
+            delivery: $delivery,
         );
     }
 

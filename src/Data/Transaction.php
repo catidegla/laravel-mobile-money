@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Catidegla\MobileMoney\Data;
 
+use Catidegla\MobileMoney\Enums\Delivery;
 use Catidegla\MobileMoney\Enums\PaymentStatus;
 use DateTimeImmutable;
 use JsonSerializable;
@@ -33,6 +34,15 @@ final class Transaction implements JsonSerializable
         public readonly ?DateTimeImmutable $completedAt = null,
         /** @var array<string, mixed> the decoded provider payload, minus credentials */
         public readonly array $raw = [],
+        /**
+         * What our own side saw of the outbound request, where this result
+         * came from an attempt to send one.
+         *
+         * Null on everything else, including every status() call, because a
+         * poll succeeding says nothing about whether the original collection
+         * request arrived. Only a collect() ever fills this in.
+         */
+        public readonly ?Delivery $delivery = null,
     ) {}
 
     public function isSettled(): bool
@@ -68,6 +78,7 @@ final class Transaction implements JsonSerializable
         ?string $failureReason = null,
         ?DateTimeImmutable $completedAt = null,
         ?array $raw = null,
+        ?Delivery $delivery = null,
     ): self {
         return new self(
             $status ?? $this->status,
@@ -81,6 +92,7 @@ final class Transaction implements JsonSerializable
             $failureReason ?? $this->failureReason,
             $completedAt ?? $this->completedAt,
             $raw ?? $this->raw,
+            $delivery ?? $this->delivery,
         );
     }
 

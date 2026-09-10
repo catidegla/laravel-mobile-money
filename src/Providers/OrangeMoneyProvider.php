@@ -14,6 +14,7 @@ use Catidegla\MobileMoney\Enums\PaymentStatus;
 use Catidegla\MobileMoney\Exceptions\ProviderException;
 use Closure;
 use DateTimeImmutable;
+use Catidegla\MobileMoney\Enums\Delivery;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
@@ -104,6 +105,8 @@ final class OrangeMoneyProvider implements Provider, VerifiesWebhooks
         try {
             $response = $this->client()->post($this->path('webpayment'), $payload);
         } catch (ConnectionException $e) {
+            $delivery = Delivery::classify($e);
+
             return new Transaction(
                 status: PaymentStatus::Unknown,
                 amount: $request->amount,
@@ -111,7 +114,8 @@ final class OrangeMoneyProvider implements Provider, VerifiesWebhooks
                 provider: $this->name(),
                 payer: $request->payer,
                 failureReason: $e->getMessage(),
-                raw: ['error' => 'connection'],
+                raw: ['error' => 'connection', 'delivery' => $delivery->value],
+                delivery: $delivery,
             );
         }
 
@@ -140,6 +144,7 @@ final class OrangeMoneyProvider implements Provider, VerifiesWebhooks
             // notif_token must be persisted. It is the only thing that makes a
             // later callback verifiable.
             raw: $body,
+            delivery: Delivery::Delivered,
         );
     }
 

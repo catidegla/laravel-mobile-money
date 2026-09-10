@@ -49,6 +49,20 @@ final class ProviderException extends MobileMoneyException
         return ($this->context['kind'] ?? null) === 'not_found';
     }
 
+    /**
+     * Whether this failure came back over a connection that worked.
+     *
+     * A rejection is still an answer. The provider read the request, formed an
+     * opinion about it and sent one back, which means it has the request, and
+     * that is worth recording on the payment even though the call failed.
+     * Contrast a connection that never opened, which produces no exception of
+     * this kind at all because there was nobody to reject anything.
+     */
+    public function receivedAnswer(): bool
+    {
+        return isset($this->context['http_status']) && (int) $this->context['http_status'] > 0;
+    }
+
     public static function unsupported(string $provider, string $currency, string $country): self
     {
         return (new self(sprintf(

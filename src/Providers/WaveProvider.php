@@ -14,6 +14,7 @@ use Catidegla\MobileMoney\Enums\Currency;
 use Catidegla\MobileMoney\Enums\PaymentStatus;
 use Catidegla\MobileMoney\Exceptions\ProviderException;
 use DateTimeImmutable;
+use Catidegla\MobileMoney\Enums\Delivery;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
@@ -71,6 +72,8 @@ final class WaveProvider implements Provider, VerifiesWebhooks
             // session, which is why status() can search by reference.
             $response = $this->client()->post('/v1/checkout/sessions', $payload);
         } catch (ConnectionException $e) {
+            $delivery = Delivery::classify($e);
+
             return new Transaction(
                 status: PaymentStatus::Unknown,
                 amount: $request->amount,
@@ -78,7 +81,8 @@ final class WaveProvider implements Provider, VerifiesWebhooks
                 provider: $this->name(),
                 payer: $request->payer,
                 failureReason: $e->getMessage(),
-                raw: ['error' => 'connection'],
+                raw: ['error' => 'connection', 'delivery' => $delivery->value],
+                delivery: $delivery,
             );
         }
 
@@ -86,7 +90,7 @@ final class WaveProvider implements Provider, VerifiesWebhooks
             throw ProviderException::rejected($this->name(), $response->status(), $this->errorBody($response));
         }
 
-        return $this->toTransaction($response->json(), $request->payer);
+        return $this->toTransaction($response->json(), $request->payer)->with(delivery: Delivery::Delivered);
     }
 
     public function status(string $reference): Transaction

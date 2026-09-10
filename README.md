@@ -136,6 +136,38 @@ The reconciler picks up `Claimed` rows alongside `Pending` and `Unknown`, since 
 
 Set `ledger.enabled` to `false` to make `collect()` a pure provider call again. That hands you the whole problem: you then own recording the attempt before it happens.
 
+### A reference the provider does not recognise means two different things
+
+Poll a claim and the provider may answer that it has no transaction with that reference. That sentence has two readings and the provider does not say which one it means: either it never received the request, or it received one it has not indexed yet.
+
+They need opposite handling. Read the first as the second and the payment is polled until the schedule runs out, leaving an order nobody ever settles. Read the second as the first and you have failed a payment that is about to succeed, with the customer's money already gone.
+
+Nothing on the provider's side separates them. Your own HTTP client does, at the moment the call fails and nowhere afterwards, so `collect()` writes down what it saw:
+
+```php
+$record->delivery;   // Delivery::NeverSent
+```
+
+| | |
+|---|---|
+| `Unattempted` | Claimed, nothing on the wire yet |
+| `NeverSent` | The connection never opened, so the provider cannot hold it |
+| `Indeterminate` | The request went out and no usable answer came back |
+| `Delivered` | The provider answered, whatever the answer was |
+
+A refused connection, a host that never resolved, a failed handshake, or a timeout that expired before the connection was established: all of those are proof the request did not arrive. A read timeout is proof of nothing, because the body may well have gone out and only the reply got lost.
+
+That makes the 404 conclusive when, and only when, both halves line up. The reconciler closes a payment it can show was never sent and the provider does not recognise, and leaves every other combination polling exactly as before:
+
+```
+ORDER-1: never sent and unknown to mtn_momo, closed
+ORDER-2: not recognised by mtn_momo, still polling
+```
+
+It closes to `Failed` rather than `Unknown`, which is the point of the whole column. `Unknown` exists to block a retry that might be a second charge; here there is nothing to charge twice, so the order is released to be attempted again.
+
+The classification is deliberately asymmetric. `NeverSent` is only recorded on positive evidence and everything else falls through to `Indeterminate`, because the two mistakes do not cost the same: calling an arrived request never sent fails a live payment, while calling a lost one indeterminate just means it keeps being polled, which is what already happened. Rows written before this column existed carry no observation and conclude nothing.
+
 ## Provider status
 
 | Provider | Markets | Flow | Collections | Webhooks | Payouts | Sandbox verified |
@@ -255,6 +287,8 @@ The backoff lives on each row, so running every minute costs nothing for payment
 
 It refuses to move a settled payment backwards. Out of order delivery is normal, and a stale failure arriving after a poll already confirmed success must not reopen the order.
 
+Alongside the payment's status it keeps `delivery`, which records what the outbound request looked like from this side rather than from the provider's. Once a row shows the provider answered, it stays that way: a later refused connection cannot unsay an earlier delivery.
+
 ## Testing
 
 ```bash
@@ -262,7 +296,7 @@ composer install
 vendor/bin/phpunit
 ```
 
-100 tests. The suite fakes HTTP and asserts the exact bytes sent to each provider, including that 10 000 XOF leaves as `"10000"`.
+135 tests. The suite fakes HTTP and asserts the exact bytes sent to each provider, including that 10 000 XOF leaves as `"10000"`.
 
 The webhook tests are the ones worth reading. They cover a tampered body, a signature from the wrong secret, a replayed callback outside the tolerance window, a missing or malformed header, both signatures during a key rotation, and the case where verification must fail closed because no secret is configured. There is also a test proving the raw request body is used rather than re-encoded JSON, since re-encoding can reorder keys and silently break every signature.
 

@@ -8,6 +8,7 @@ use Catidegla\MobileMoney\Contracts\Provider;
 use Catidegla\MobileMoney\Data\CollectionRequest;
 use Catidegla\MobileMoney\Data\Transaction;
 use Catidegla\MobileMoney\Enums\Currency;
+use Catidegla\MobileMoney\Enums\Delivery;
 use Catidegla\MobileMoney\Exceptions\ProviderException;
 use Catidegla\MobileMoney\Models\MobileMoneyTransaction;
 use Catidegla\MobileMoney\Providers\MtnMomoProvider;
@@ -169,7 +170,20 @@ class MobileMoneyManager
             $record->save();
         }
 
-        $transaction = $driver->collect($request);
+        try {
+            $transaction = $driver->collect($request);
+        } catch (ProviderException $e) {
+            // The call failed, but a rejection is an answer: it means the
+            // provider has the request. Recording that before the exception
+            // leaves here is what stops the reconciler from later mistaking a
+            // reference the provider has not indexed yet for one it never got.
+            if ($e->receivedAnswer()) {
+                $record->recordDelivery(Delivery::Delivered);
+            }
+
+            throw $e;
+        }
+
         $record->applyTransaction($transaction);
 
         if ($transaction->status->isPollable()) {
