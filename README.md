@@ -266,6 +266,20 @@ vendor/bin/phpunit
 
 The webhook tests are the ones worth reading. They cover a tampered body, a signature from the wrong secret, a replayed callback outside the tolerance window, a missing or malformed header, both signatures during a key rotation, and the case where verification must fail closed because no secret is configured. There is also a test proving the raw request body is used rather than re-encoded JSON, since re-encoding can reorder keys and silently break every signature.
 
+## The other half: accepting payment in person
+
+This package pushes a prompt to a handset, which covers a customer paying from wherever they are. It does nothing for a customer standing at a counter.
+
+That case runs on a different rail. Since September 2025 the eight UEMOA countries share one interoperable instant payment platform, PI-SPI, and a merchant accepts on it by displaying a QR the payer scans. The QR is EMV, but the profile is specific: the scheme identifier must be `int.bceao.pi`, the currency is always 952, and only a 36 character payment address may appear in it, so the phone number alias that works everywhere else on the rail is invalid there.
+
+[**catidegla/pi-spi-qr**](https://github.com/catidegla/pi-spi-qr) builds, parses and validates those payloads. Zero dependencies, no framework required, and its test suite carries BCEAO's own published worked example so the specification can contradict the package rather than only the reverse.
+
+```bash
+composer require catidegla/pi-spi-qr
+```
+
+The two do not depend on each other and are useful separately. Together they cover a customer paying from their phone and a customer paying at your counter.
+
 ## Contributing
 
 Adding a provider means implementing `Contracts\Provider`, plus `VerifiesWebhooks` if it signs callbacks. Two rules:
