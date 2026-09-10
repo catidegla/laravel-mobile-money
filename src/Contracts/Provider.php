@@ -40,6 +40,21 @@ interface Provider
      */
     public function status(string $reference): Transaction;
 
+    /**
+     * What status() will answer on for this request, known before calling.
+     *
+     * The point is the payment that never got a reply. A crash between writing
+     * the local row and hearing back leaves nothing from the provider to poll
+     * with, so the handle has to be derivable from what we already had.
+     *
+     * For most drivers that is simply the merchant reference they were given.
+     * MTN is the exception worth the method existing: it answers on the
+     * X-Reference-Id, which is a UUID derived deterministically from the
+     * idempotency key, so the same key always yields the same handle and a
+     * request that may never have been sent is still queryable.
+     */
+    public function handleFor(CollectionRequest $request): string;
+
     /** Currencies this driver can actually move, as configured. */
     public function supportedCurrencies(): array;
 

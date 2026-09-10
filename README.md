@@ -113,6 +113,29 @@ Treating that as failed and retrying is how customers get charged twice. Query b
 
 Providers also flatten distinctions that matter. MTN reports a customer declining the prompt and a customer never answering it both as `FAILED`; this package separates them into `Cancelled` and `Expired`, because only some are worth prompting again for.
 
+### The row goes in before the call
+
+`Unknown` covers a call that came back unreadable. It cannot cover a process that died before the call returned at all, because nothing was written.
+
+So `collect()` writes a row first, in a **`Claimed`** state meaning the request may have reached the provider and nothing has come back:
+
+```php
+$status->isAcknowledged();   // false only for Claimed
+$status->allowsRetry();      // false for Claimed, same as Unknown
+```
+
+The ordering is the whole point, and both of the obvious alternatives have a hole. Writing the row after the call means a crash in between leaves no trace, so the retry looks like a first attempt. Writing it after the call but marking it done immediately has the same hole from the other side: a failure after the mark leaves a key that reads as handled, the redelivery is discarded, and the payment is lost.
+
+Two more things fall out of writing it first:
+
+**The second call is answered, not repeated.** A `collect()` carrying an idempotency key that already reached a final state returns the stored result instead of calling the provider again. The unique index on `idempotency_key` is what makes that safe under concurrency: two requests race to insert, the database picks one, and the loser reads the winner's row rather than opening a second payment.
+
+**A claim can still be polled.** MTN answers status on the `X-Reference-Id`, which is derived deterministically from the idempotency key, so the handle is known before the call and stored with the claim. A payment that never got a reply is still something you can ask about, which is the only reason recording it is worth anything.
+
+The reconciler picks up `Claimed` rows alongside `Pending` and `Unknown`, since a process that died between the claim and the call leaves a row nobody else is waiting on.
+
+Set `ledger.enabled` to `false` to make `collect()` a pure provider call again. That hands you the whole problem: you then own recording the attempt before it happens.
+
 ## Provider status
 
 | Provider | Markets | Flow | Collections | Webhooks | Payouts | Sandbox verified |

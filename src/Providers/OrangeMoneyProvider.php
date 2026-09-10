@@ -335,6 +335,12 @@ final class OrangeMoneyProvider implements Provider, VerifiesWebhooks
         return Currency::from($this->config['currency'] ?? 'XOF');
     }
 
+    /** Orange answers on the order_id we send, which is our own reference. */
+    public function handleFor(CollectionRequest $request): string
+    {
+        return $request->reference;
+    }
+
     public function supportedCurrencies(): array
     {
         return array_map(

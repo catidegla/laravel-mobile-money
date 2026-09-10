@@ -159,6 +159,26 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Ledger
+    |--------------------------------------------------------------------------
+    |
+    | Write a row before calling a provider, so that a crash between the two
+    | leaves a record instead of nothing. The row starts as "claimed", meaning
+    | the request may have reached the provider and nothing has come back, and
+    | the reconciler chases it from there.
+    |
+    | Turning this off makes collect() a pure provider call and hands you the
+    | whole problem: you then own recording the attempt before it happens, and
+    | a process that dies mid-call leaves a payment nobody knows about.
+    |
+    */
+
+    'ledger' => [
+        'enabled' => env('MOBILE_MONEY_LEDGER', true),
+    ],
+
     'reconciliation' => [
         'enabled' => true,
 

@@ -307,6 +307,17 @@ final class MtnMomoProvider implements Provider
         return Currency::from($this->config['currency'] ?? 'XOF');
     }
 
+    /**
+     * The X-Reference-Id this request will be sent with.
+     *
+     * Derived from the idempotency key rather than remembered, so a crash
+     * before the call still leaves something to poll with.
+     */
+    public function handleFor(CollectionRequest $request): string
+    {
+        return $this->asUuid($request->idempotencyKey);
+    }
+
     public function supportedCurrencies(): array
     {
         return array_map(

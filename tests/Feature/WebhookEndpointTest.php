@@ -27,6 +27,9 @@ final class WebhookEndpointTest extends TestCase
         );
 
         $record = MobileMoneyTransaction::fromRequest($request, 'wave');
+        // fromRequest builds the pre-call claim. A callback arriving for a
+        // session implies the provider already has the payment.
+        $record->status = PaymentStatus::Pending;
         $record->provider_reference = 'cos-18qq25rgr100a';
         $record->fill($overrides);
         $record->save();

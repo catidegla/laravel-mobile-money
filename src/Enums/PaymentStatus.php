@@ -19,6 +19,20 @@ namespace Catidegla\MobileMoney\Enums;
  */
 enum PaymentStatus: string
 {
+    /**
+     * Written before the provider was called, and not yet updated.
+     *
+     * This is the state a crash leaves behind. The row exists because we were
+     * about to call, or were mid-call, so the provider may have received the
+     * request and may have prompted the customer. Nothing has come back.
+     *
+     * The distinction from Unknown is where the doubt starts. Unknown means we
+     * called and could not read the answer. Claimed means we may never have
+     * finished asking. Both have to be queried before any retry, and neither
+     * is safe to treat as a failure, which is the mistake that charges twice.
+     */
+    case Claimed = 'claimed';
+
     /** Accepted by the provider. The customer has not acted yet. */
     case Pending = 'pending';
 
@@ -48,7 +62,7 @@ enum PaymentStatus: string
     {
         return match ($this) {
             self::Succeeded, self::Failed, self::Cancelled, self::Expired => true,
-            self::Pending, self::Unknown => false,
+            self::Claimed, self::Pending, self::Unknown => false,
         };
     }
 
@@ -74,8 +88,19 @@ enum PaymentStatus: string
     {
         return match ($this) {
             self::Failed, self::Cancelled, self::Expired => true,
-            self::Pending, self::Succeeded, self::Unknown => false,
+            self::Claimed, self::Pending, self::Succeeded, self::Unknown => false,
         };
+    }
+
+    /**
+     * Whether the provider has confirmed it has the request.
+     *
+     * False only for Claimed, and that is the whole reason the state exists.
+     * Everything else in this enum describes something the provider told us.
+     */
+    public function isAcknowledged(): bool
+    {
+        return $this !== self::Claimed;
     }
 
     public function isFailure(): bool

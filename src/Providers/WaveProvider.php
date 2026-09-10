@@ -316,6 +316,15 @@ final class WaveProvider implements Provider, VerifiesWebhooks
         return Currency::from($this->config['currency'] ?? 'XOF');
     }
 
+    /**
+     * Wave has no idempotency header, so our own client_reference is the only
+     * handle, and status() searches on it when it is not a cos- session id.
+     */
+    public function handleFor(CollectionRequest $request): string
+    {
+        return $request->reference;
+    }
+
     public function supportedCurrencies(): array
     {
         return array_map(

@@ -15,6 +15,7 @@ declare(strict_types=1);
 return [
 
     'status' => [
+        'claimed' => 'Paiement en cours de demarrage. Ne payez pas une seconde fois.',
         'pending' => 'Paiement en attente. Validez la demande sur votre telephone.',
         'succeeded' => 'Paiement effectue.',
         'failed' => 'Le paiement a echoue.',

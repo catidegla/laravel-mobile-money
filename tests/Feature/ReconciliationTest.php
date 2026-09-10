@@ -30,6 +30,9 @@ final class ReconciliationTest extends TestCase
         );
 
         $record = MobileMoneyTransaction::fromRequest($request, 'mtn_momo');
+        // fromRequest builds the pre-call claim. These cases are about a
+        // payment the provider has already acknowledged, so move it on.
+        $record->status = PaymentStatus::Pending;
         $record->provider_reference = '11111111-1111-4111-8111-111111111111';
         $record->next_poll_at = CarbonImmutable::now()->subMinute();
         $record->fill($overrides);

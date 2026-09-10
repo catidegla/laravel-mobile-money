@@ -9,6 +9,7 @@ use Catidegla\MobileMoney\Data\CollectionRequest;
 use Catidegla\MobileMoney\Data\Transaction;
 use Catidegla\MobileMoney\Enums\Currency;
 use Catidegla\MobileMoney\Exceptions\ProviderException;
+use Catidegla\MobileMoney\Models\MobileMoneyTransaction;
 use Catidegla\MobileMoney\Providers\MtnMomoProvider;
 use Catidegla\MobileMoney\Providers\OrangeMoneyProvider;
 use Catidegla\MobileMoney\Providers\WaveProvider;
@@ -123,12 +124,59 @@ class MobileMoneyManager
         return reset($candidates);
     }
 
-    /** Collect, choosing the driver from the payer's number. */
+    /**
+     * Collect, choosing the driver from the payer's number.
+     *
+     * A row is written before the driver is called, so that a crash between
+     * here and the provider leaves evidence rather than silence. See
+     * MobileMoneyTransaction::claim() for why the order matters.
+     *
+     * The claim also answers the second attempt. A repeated call with the same
+     * idempotency key finds the first row instead of inserting one, and if
+     * that row already reached a final state the provider is not called again,
+     * because we are asking a question we have the answer to.
+     */
     public function collect(CollectionRequest $request, ?string $using = null): Transaction
     {
         $driver = $using !== null ? $this->driver($using) : $this->routeFor($request);
 
-        return $driver->collect($request);
+        if (! $this->config('ledger.enabled')) {
+            return $driver->collect($request);
+        }
+
+        if ($request->idempotencyKey === '') {
+            throw ProviderException::rejected(
+                $driver->name(),
+                0,
+                'the ledger needs an idempotency key to claim against. Build the request with CollectionRequest::make(), which generates one, or set it with withIdempotencyKey().',
+            );
+        }
+
+        $record = MobileMoneyTransaction::claim($request, $driver->name());
+
+        if ($record->status->isFinal()) {
+            return $record->toTransaction();
+        }
+
+        // Store the handle the provider will answer on, before anything is
+        // sent. Without it a row that never gets a reply has nothing to poll
+        // with, which would make the claim a record of a payment we could not
+        // then ask about. Only stored when it differs from our own reference,
+        // since the reconciler already falls back to that.
+        $handle = $driver->handleFor($request);
+        if ($handle !== $request->reference && $record->provider_reference === null) {
+            $record->provider_reference = $handle;
+            $record->save();
+        }
+
+        $transaction = $driver->collect($request);
+        $record->applyTransaction($transaction);
+
+        if ($transaction->status->isPollable()) {
+            $record->scheduleNextPoll();
+        }
+
+        return $transaction;
     }
 
     public function status(string $reference, string $using): Transaction

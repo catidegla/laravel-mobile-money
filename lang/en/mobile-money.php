@@ -11,6 +11,7 @@ declare(strict_types=1);
 return [
 
     'status' => [
+        'claimed' => 'Payment starting. Do not pay again until this resolves.',
         'pending' => 'Payment pending. Approve the request on your phone.',
         'succeeded' => 'Payment complete.',
         'failed' => 'The payment failed.',

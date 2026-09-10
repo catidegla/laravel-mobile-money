@@ -13,6 +13,7 @@ use Catidegla\MobileMoney\Enums\PaymentStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 /**
  * The local record of a payment.
@@ -75,13 +76,68 @@ class MobileMoneyTransaction extends Model
             'reference' => $request->reference,
             'idempotency_key' => $request->idempotencyKey,
             'provider' => $provider,
-            'status' => PaymentStatus::Pending,
+            'status' => PaymentStatus::Claimed,
             'amount_minor' => $request->amount->minorUnits,
             'currency' => $request->amount->currency,
             'payer_msisdn' => $request->payer->e164(),
             'payer_country' => $request->payer->country,
             'metadata' => $request->metadata,
         ]);
+    }
+
+    /**
+     * Record the intent to pay before anyone calls a provider.
+     *
+     * The ordering is the point. Writing the row after the call means a crash
+     * in between leaves no trace, and the retry looks like a first attempt.
+     * Writing it after the call succeeds but marking it done immediately has
+     * the same hole from the other side: a failure after the mark leaves an id
+     * that reads as handled, so the redelivery is discarded and the payment is
+     * lost. The row goes in first, in a state that says nothing came back yet.
+     *
+     * The unique index on idempotency_key is what makes this safe under
+     * concurrency rather than merely tidy. Two requests carrying the same key
+     * race to insert; the database picks one, the loser catches the violation
+     * and reads the winner's row. Checking for an existing row first and
+     * inserting if absent would leave a window between the two statements
+     * wide enough for both to pass.
+     */
+    public static function claim(CollectionRequest $request, string $provider): self
+    {
+        $record = self::fromRequest($request, $provider);
+
+        try {
+            $record->save();
+
+            return $record;
+        } catch (UniqueConstraintViolationException) {
+            // Somebody already holds this key. Theirs is the real row, and
+            // whatever state it is in is the truth about this payment.
+            return self::query()->where('idempotency_key', $request->idempotencyKey)->firstOrFail();
+        }
+    }
+
+    /**
+     * The row as the shape the drivers return, for answering without a call.
+     *
+     * Used when a claim turns out to be already settled, where calling the
+     * provider again would be a question we have the answer to.
+     */
+    public function toTransaction(): Transaction
+    {
+        return new Transaction(
+            status: $this->status,
+            amount: $this->money(),
+            reference: $this->reference,
+            provider: $this->provider,
+            providerReference: $this->provider_reference,
+            payer: $this->payer(),
+            redirectUrl: $this->redirect_url,
+            failureCode: $this->failure_code,
+            failureReason: $this->failure_reason,
+            completedAt: $this->completed_at?->toDateTimeImmutable(),
+            raw: (array) ($this->raw ?? []),
+        );
     }
 
     /**
@@ -154,11 +210,22 @@ class MobileMoneyTransaction extends Model
 
     /* --------------------------------------------------------------- scopes */
 
-    /** Unsettled and due a status check. */
+    /**
+     * Unsettled and due a status check.
+     *
+     * Claimed belongs here for the same reason it exists. A process that died
+     * between the claim and the provider call leaves a row nobody is waiting
+     * on, and the reconciler is the only thing left that will ask what became
+     * of it.
+     */
     public function scopeDueForReconciliation(Builder $query): Builder
     {
         return $query
-            ->whereIn('status', [PaymentStatus::Pending->value, PaymentStatus::Unknown->value])
+            ->whereIn('status', [
+                PaymentStatus::Claimed->value,
+                PaymentStatus::Pending->value,
+                PaymentStatus::Unknown->value,
+            ])
             ->whereNotNull('next_poll_at')
             ->where('next_poll_at', '<=', CarbonImmutable::now());
     }

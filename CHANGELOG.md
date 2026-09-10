@@ -2,6 +2,22 @@
 
 All notable changes to this package are documented here. This project follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.0
+
+### Added
+
+- **`collect()` writes a row before it calls the provider.** A new `PaymentStatus::Claimed` marks a payment whose request may have reached the provider and for which nothing has come back. `Unknown` already covered a call that returned something unreadable; nothing covered a process that died before the call returned at all, because nothing had been written yet. Both alternatives to writing first have a hole: recording the attempt afterwards means a crash in between leaves no trace and the retry looks like a first attempt, while recording it afterwards as already handled means a failure after that mark discards the redelivery and loses the payment. `Claimed` is not acknowledged, is not retryable, and is polled by the reconciler alongside `Pending` and `Unknown`.
+- **A repeated `collect()` with a key that already settled returns the stored result** instead of calling the provider again. The unique index on `idempotency_key` carries this under concurrency rather than a check followed by an insert, which would leave a window between the two statements wide enough for both to pass.
+- **`Provider::handleFor()`**, the identifier a driver will answer a status query on, derivable before the call. MTN is why it exists: it answers on the `X-Reference-Id`, a UUID derived deterministically from the idempotency key, so a request that may never have been sent is still queryable. It is stored with the claim, because a record of a payment you cannot then ask about is not worth writing.
+- `PaymentStatus::isAcknowledged()`, false only for `Claimed`.
+- `MobileMoneyTransaction::claim()` and `toTransaction()`.
+- A `ledger.enabled` config key. Off means `collect()` is a pure provider call and recording the attempt before it happens becomes yours.
+
+### Changed
+
+- **`MobileMoneyTransaction::fromRequest()` now builds a `Claimed` row rather than a `Pending` one.** It describes a request that has not been sent, so the state it produced was wrong. Anything using it as a fixture for an in-flight payment needs to set `Pending` itself.
+- `collect()` touches the database by default, so the migration has to have run. This is the breaking part of the release.
+
 ## 0.3.0
 
 ### Added
