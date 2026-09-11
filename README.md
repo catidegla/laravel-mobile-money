@@ -8,7 +8,7 @@ MTN MoMo, Wave and Orange Money. Idempotent collections, verified webhooks, numb
 
 [![Tests](https://github.com/catidegla/laravel-mobile-money/actions/workflows/tests.yml/badge.svg)](https://github.com/catidegla/laravel-mobile-money/actions/workflows/tests.yml)
 [![PHP](https://img.shields.io/badge/php-%E2%89%A58.2-777bb4)](composer.json)
-[![Laravel](https://img.shields.io/badge/laravel-12-ff2d20)](composer.json)
+[![Laravel](https://img.shields.io/badge/laravel-12%20%7C%2013-ff2d20)](composer.json)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -219,10 +219,12 @@ composer require catidegla/laravel-mobile-money
 php artisan vendor:publish --tag=mobile-money-config
 ```
 
-Requires PHP 8.2 and **Laravel 12**. Laravel 11 is deliberately not supported: advisory
-`PKSA-mdq4-51ck-6kdq` covers the whole `>=11.0.0,<12.0.0` range with no fix on that branch, so
-Composer's default advisory policy refuses to install it. Supporting 11 would mean asking you to
-turn that protection off.
+Requires PHP 8.2 and **Laravel 12 or 13**. Laravel 13 itself needs PHP 8.3, so on 8.2 Composer will
+resolve you to 12, which is the intended outcome rather than a failure.
+
+Laravel 11 is deliberately not supported: advisory `PKSA-mdq4-51ck-6kdq` covers the whole
+`>=11.0.0,<12.0.0` range with no fix on that branch, so Composer's default advisory policy refuses
+to install it. Supporting 11 would mean asking you to turn that protection off.
 
 ```env
 MTN_MOMO_BASE_URL=https://sandbox.momodeveloper.mtn.com
