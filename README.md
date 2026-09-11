@@ -34,6 +34,18 @@ $transaction->reference;   // poll or reconcile with this
 
 No driver named. The payer's number decides which network handles it.
 
+**Where it works today.** MTN MoMo in Benin, Côte d'Ivoire, Cameroon, Guinea, Ghana, Uganda and Rwanda. Wave in Senegal and Côte d'Ivoire. Orange Money in Côte d'Ivoire, Senegal, Mali, Burkina Faso, Cameroon and Guinea. Four more providers are planned and none of them is implemented yet, so read [Provider status](#provider-status) before you plan around one.
+
+**Skip to:** [why this exists](#why-this-exists) &middot; [install](#install) &middot; [usage](#usage) &middot; [provider status](#provider-status) &middot; [testing](#testing)
+
+The five sections under [the parts that are easy to get wrong](#the-parts-that-are-easy-to-get-wrong) are the reason the package is worth more than a wrapper, and each one is a bug that has cost somebody money:
+
+- [XOF is a zero-decimal currency](#xof-is-a-zero-decimal-currency), so the always-store-cents rule sends 100 times the amount
+- [Numbering plans move](#numbering-plans-move-and-old-numbers-stop-working), so yesterday's 8 digit number is today's invalid one
+- [A timeout is not a failure](#a-timeout-is-not-a-failure), and treating it as one is how customers get charged twice
+- [The row goes in before the call](#the-row-goes-in-before-the-call), so a crash mid-payment leaves evidence rather than silence
+- [A reference the provider does not recognise means two different things](#a-reference-the-provider-does-not-recognise-means-two-different-things), and only your own HTTP client can say which
+
 ## Why this exists
 
 Integrating mobile money in this region means writing the same four hundred lines against Orange Money, then again against MTN, then again against Wave, each with a different idea of what a phone number looks like and what an amount is.

@@ -46,55 +46,63 @@ final class DeliveryTest extends TestCase
     /* ------------------------------------------------------- classification */
 
     #[Test]
-    public function a_refused_connection_proves_the_request_never_arrived(): void
+    public function a_connection_that_never_opened_proves_the_request_never_arrived(): void
     {
-        $this->assertSame(
-            Delivery::NeverSent,
-            Delivery::classify($this->connectionFailure(errno: 7)),
-        );
+        $this->assertSame(Delivery::NeverSent, Delivery::classify($this->neverOpened()));
     }
 
     #[Test]
-    public function a_host_that_never_resolved_proves_it_too(): void
+    public function a_failure_after_the_connection_opened_proves_nothing(): void
     {
-        $this->assertSame(Delivery::NeverSent, Delivery::classify($this->connectionFailure(errno: 6)));
-        $this->assertSame(Delivery::NeverSent, Delivery::classify($this->connectionFailure(errno: 35)));
+        // The body may well have gone out and only the answer got lost. This
+        // is the case the whole design has to keep ambiguous.
+        $this->assertSame(Delivery::Indeterminate, Delivery::classify($this->openedThenFailed()));
     }
 
     #[Test]
-    public function a_read_timeout_proves_nothing(): void
-    {
-        // curl 28 with a connection that did open: the body may well have gone
-        // out and only the answer got lost. This is the case the whole design
-        // has to keep ambiguous.
-        $this->assertSame(
-            Delivery::Indeterminate,
-            Delivery::classify($this->connectionFailure(errno: 28, connectTime: 0.031)),
-        );
-    }
-
-    #[Test]
-    public function a_timeout_before_the_connection_opened_is_conclusive(): void
-    {
-        $this->assertSame(
-            Delivery::Indeterminate,
-            Delivery::classify($this->connectionFailure(errno: 28, connectTime: 0.031)),
-        );
-
-        $this->assertSame(
-            Delivery::NeverSent,
-            Delivery::classify($this->connectionFailure(errno: 28, connectTime: 0.0)),
-        );
-    }
-
-    #[Test]
-    public function an_unrecognised_failure_falls_through_to_indeterminate(): void
+    public function a_failure_carrying_nothing_useful_falls_through_to_indeterminate(): void
     {
         // The asymmetry is deliberate. Calling an arrived request never sent
         // fails a live payment; calling a lost one indeterminate only keeps it
         // being polled, which is what already happens.
-        $this->assertSame(Delivery::Indeterminate, Delivery::classify($this->connectionFailure(errno: 52)));
         $this->assertSame(Delivery::Indeterminate, Delivery::classify(new ConnectionException('cURL error 99')));
+    }
+
+    #[Test]
+    public function guzzle_7_is_read_from_the_curl_context_rather_than_the_class(): void
+    {
+        if (! self::readsCurlContext()) {
+            $this->markTestSkipped('Guzzle 8 sorts these into typed exceptions and no longer exposes the context.');
+        }
+
+        //  6 host not resolved, 7 connection refused, 35 handshake failed.
+        $this->assertSame(Delivery::NeverSent, Delivery::classify($this->curlFailure(errno: 6)));
+        $this->assertSame(Delivery::NeverSent, Delivery::classify($this->curlFailure(errno: 7)));
+        $this->assertSame(Delivery::NeverSent, Delivery::classify($this->curlFailure(errno: 35)));
+
+        // 52 got nothing back: the request went out, so nothing is proven.
+        $this->assertSame(Delivery::Indeterminate, Delivery::classify($this->curlFailure(errno: 52)));
+
+        // 28 is a timeout and covers both cases. Only a connection that was
+        // never established settles it, which curl records as connect_time 0.
+        $this->assertSame(Delivery::NeverSent, Delivery::classify($this->curlFailure(errno: 28, connectTime: 0.0)));
+        $this->assertSame(Delivery::Indeterminate, Delivery::classify($this->curlFailure(errno: 28, connectTime: 0.031)));
+    }
+
+    #[Test]
+    public function guzzle_8_is_read_from_the_class_rather_than_the_context(): void
+    {
+        if (self::readsCurlContext()) {
+            $this->markTestSkipped('Guzzle 7 keeps one exception class for every connection failure.');
+        }
+
+        // ConnectTimeoutException extends ConnectException, so the one check
+        // covers a refused connection and a timeout before one was opened.
+        $timeout = 'GuzzleHttp\Exception\ConnectTimeoutException';
+
+        $this->assertSame(Delivery::NeverSent, Delivery::classify($this->wrap(
+            new $timeout('Connection timed out', new PsrRequest('POST', 'https://example.test')),
+        )));
     }
 
     /* ------------------------------------------------------------- merging */
@@ -146,7 +154,7 @@ final class DeliveryTest extends TestCase
     {
         Http::fake([
             '*/token/' => Http::response(['access_token' => 't', 'expires_in' => 3600]),
-            '*/requesttopay' => fn () => throw $this->connectionFailure(errno: 7),
+            '*/requesttopay' => fn () => throw $this->neverOpened(),
         ]);
 
         $transaction = MobileMoney::collect($request = $this->request());
@@ -310,11 +318,46 @@ final class DeliveryTest extends TestCase
         return $record;
     }
 
+    /** Whether the installed Guzzle still carries curl's numbers on the exception. */
+    private static function readsCurlContext(): bool
+    {
+        return method_exists(ConnectException::class, 'getHandlerContext');
+    }
+
     /**
-     * The exception Laravel raises for a failed connection, with the curl
-     * details Guzzle attaches to it.
+     * A failure where the connection never opened.
+     *
+     * Built the way the installed Guzzle would build it. On 8 the class is the
+     * whole answer and the constructor takes three arguments; on 7 the class
+     * proves nothing and the curl context has to carry it.
      */
-    private function connectionFailure(int $errno, ?float $connectTime = null): ConnectionException
+    private function neverOpened(): ConnectionException
+    {
+        return self::readsCurlContext()
+            ? $this->curlFailure(errno: 7)
+            : $this->wrap(new ConnectException('Connection refused', new PsrRequest('POST', 'https://example.test')));
+    }
+
+    /**
+     * A failure after the connection opened, where the body may have gone out.
+     *
+     * Guzzle 8 raises a NetworkException for this, which is deliberately not a
+     * subclass of ConnectException. Guzzle 7 raises a ConnectException with a
+     * curl timeout on it and a connection that was established.
+     */
+    private function openedThenFailed(): ConnectionException
+    {
+        if (self::readsCurlContext()) {
+            return $this->curlFailure(errno: 28, connectTime: 0.031);
+        }
+
+        $network = 'GuzzleHttp\Exception\NetworkException';
+
+        return $this->wrap(new $network('Operation timed out', new PsrRequest('POST', 'https://example.test')));
+    }
+
+    /** Guzzle 7's shape: one exception class, curl's own numbers on the side. */
+    private function curlFailure(int $errno, ?float $connectTime = null): ConnectionException
     {
         $context = ['errno' => $errno, 'error' => 'curl error '.$errno];
 
@@ -322,10 +365,13 @@ final class DeliveryTest extends TestCase
             $context['connect_time'] = $connectTime;
         }
 
-        return new ConnectionException(
-            'cURL error '.$errno,
-            0,
+        return $this->wrap(
             new ConnectException('cURL error '.$errno, new PsrRequest('POST', 'https://example.test'), null, $context),
         );
+    }
+
+    private function wrap(\Throwable $previous): ConnectionException
+    {
+        return new ConnectionException($previous->getMessage(), 0, $previous);
     }
 }

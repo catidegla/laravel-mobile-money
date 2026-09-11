@@ -64,15 +64,48 @@ enum Delivery: string
      * a live payment, while calling a lost one "indeterminate" only means it
      * keeps being polled, which is what the reconciler already does.
      *
-     * The curl numbers are the ones Guzzle itself treats as connection
-     * failures. Written as literals because ext-curl is not guaranteed to be
-     * loaded, and an undefined constant here would be a fatal error inside an
-     * error path.
+     * Two Guzzle generations answer this question in different places.
+     *
+     * Guzzle 8 sorts curl's errors into typed exceptions itself and dropped
+     * getHandlerContext(), so the class is the answer: ConnectException is its
+     * "the connection never opened" bucket, and ConnectTimeoutException, a
+     * timeout that expired before one was established, extends it. Everything
+     * that happened after the connection opened is a NetworkException or a
+     * ResponseException instead, neither of which is a subclass of this one.
+     *
+     * Guzzle 7 has one ConnectException for all of it and puts curl's own
+     * numbers on the side, so there the class proves nothing and the context
+     * has to be read.
+     *
+     * The method_exists check rather than a version constant because what
+     * matters is whether this object can answer, and a version comparison
+     * would be one more thing to keep true.
      */
     public static function classify(ConnectionException $exception): self
     {
         $previous = $exception->getPrevious();
-        $context = $previous instanceof ConnectException ? $previous->getHandlerContext() : [];
+
+        if (! $previous instanceof ConnectException) {
+            return self::Indeterminate;
+        }
+
+        return method_exists($previous, 'getHandlerContext')
+            ? self::fromCurlContext((array) $previous->getHandlerContext())
+            : self::NeverSent;
+    }
+
+    /**
+     * Guzzle 7, where one exception class covers every connection failure.
+     *
+     * The curl numbers are the ones Guzzle itself treats as connection
+     * failures. Written as literals because ext-curl is not guaranteed to be
+     * loaded, and an undefined constant here would be a fatal error inside an
+     * error path, which is the last place to put one.
+     *
+     * @param array<string, mixed> $context
+     */
+    private static function fromCurlContext(array $context): self
+    {
         $errno = isset($context['errno']) ? (int) $context['errno'] : null;
 
         //  5 proxy host not resolved     7 connection refused
